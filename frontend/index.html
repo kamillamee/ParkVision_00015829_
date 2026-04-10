@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Vision System</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="landing-page">
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-parking"></i>
+                <span>Smart Vision</span>
+            </div>
+            <div class="nav-links">
+                <a href="/map.html" class="nav-link"><i class="fas fa-map-marker-alt"></i> Map</a>
+                <a href="/login.html" class="btn btn-outline">Login</a>
+                <a href="/register.html" class="btn btn-primary">Sign Up</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="landing">
+        <section class="hero">
+            <div class="hero-bg" aria-hidden="true"></div>
+            <div class="container hero-inner">
+                <p class="hero-eyebrow"><i class="fas fa-bolt" aria-hidden="true"></i> Real-time &amp; AI-ready</p>
+                <div class="hero-mark" aria-hidden="true"><i class="fas fa-parking"></i></div>
+                <h1>Smart Vision System</h1>
+                <p class="subtitle">AI-powered parking management with real-time slot detection. Book a spot, pay securely, and see live occupancy.</p>
+                <div class="hero-buttons">
+                    <a href="/register.html" class="btn btn-large btn-hero-primary">Get Started</a>
+                    <a href="/login.html" class="btn btn-large btn-hero-outline">Login</a>
+                    <a href="/map.html" class="btn btn-large btn-hero-outline hero-btn-map"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> View map</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="features">
+            <div class="container">
+                <p class="features-kicker">Why Smart Vision</p>
+                <h2>Features</h2>
+                <p class="features-lead">Everything you need to find, reserve, and pay for parking in one place.</p>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <div class="feature-card-icon"><i class="fas fa-video"></i></div>
+                        <h3>Real-time detection</h3>
+                        <p>AI-powered cameras detect slot occupancy using YOLO</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-card-icon"><i class="fas fa-calendar-check"></i></div>
+                        <h3>Slot reservation</h3>
+                        <p>Book parking spots in advance</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-card-icon"><i class="fas fa-car"></i></div>
+                        <h3>Multiple vehicles</h3>
+                        <p>Register and manage multiple cars</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-card-icon"><i class="fas fa-credit-card"></i></div>
+                        <h3>Easy payment</h3>
+                        <p>Secure payment processing</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="parking-status">
+            <div class="container">
+                <h2>Live parking status</h2>
+                <p class="parking-status-lead">Real-time views from our two live camera feeds in Tashkent.</p>
+                <div class="landing-live-two">
+                    <div class="landing-live-col">
+                        <h3 class="landing-live-title">British School of Tashkent — parking</h3>
+                        <div id="parking-grid-1" class="parking-grid">
+                            <div class="loading">Loading…</div>
+                        </div>
+                    </div>
+                    <div class="landing-live-col">
+                        <h3 class="landing-live-title">Westminster University Parking</h3>
+                        <div id="parking-grid-2" class="parking-grid">
+                            <div class="loading">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="landing-stats-panel">
+                    <div class="stats-bar landing-stats-bar">
+                        <div class="stat-item">
+                            <span class="stat-label">Total slots</span>
+                            <span id="total-slots" class="stat-value">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Available</span>
+                            <span id="available-slots" class="stat-value">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Occupied</span>
+                            <span id="occupied-slots" class="stat-value">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Occupancy rate</span>
+                            <span id="occupancy-rate" class="stat-value">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Smart Vision System. Built with FastAPI & YOLO.</p>
+        </div>
+    </footer>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <script>
+        (async function () {
+            await initLandingLiveParking();
+            // SSE for real-time overlay updates (auto-reconnects on drop)
+            connectSlotStream(handleSlotStreamMessage);
+            // Always poll every 5 seconds to keep the parking map fresh
+            // (covers SSE gaps and ensures slot grid never goes stale)
+            setInterval(function () {
+                refreshLandingLiveMaps();
+            }, 5000);
+        })();
+    </script>
+</body>
+</html>

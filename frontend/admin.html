@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell admin-app">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+                <a href="/admin.html" class="app-sidebar-link active"><i class="fas fa-shield-halved"></i><span>Admin</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Administrator</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">A</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">Admin</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page">
+            <div class="app-page-inner">
+                <div class="dashboard-card admin-hero-card">
+                    <div class="admin-hero-icon" aria-hidden="true"><i class="fas fa-chart-pie"></i></div>
+                    <div>
+                        <h2>Administrator panel</h2>
+                        <p>Analytics, users, reservations and audit log. Charts use live admin statistics.</p>
+                    </div>
+                </div>
+
+                <div class="admin-kpi-grid" id="admin-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-users"></i>
+                        <div class="stat-info">
+                            <h3 id="total-users">-</h3>
+                            <p>Users</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-car"></i>
+                        <div class="stat-info">
+                            <h3 id="total-cars">-</h3>
+                            <p>Cars</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-parking"></i>
+                        <div class="stat-info">
+                            <h3 id="total-slots">-</h3>
+                            <p>Slots</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-car-side"></i>
+                        <div class="stat-info">
+                            <h3 id="occupied-slots">-</h3>
+                            <p>Occupied</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-calendar-alt"></i>
+                        <div class="stat-info">
+                            <h3 id="total-reservations">-</h3>
+                            <p>Reservations</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-check-circle"></i>
+                        <div class="stat-info">
+                            <h3 id="active-reservations">-</h3>
+                            <p>Active</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h2 class="admin-section-title"><i class="fas fa-chart-pie"></i> Visual analytics</h2>
+                <div class="admin-charts-grid">
+                    <div class="dashboard-card admin-chart-panel">
+                        <h3><i class="fas fa-circle-notch"></i> Slot occupancy</h3>
+                        <p class="chart-subtitle">Occupied vs available spaces now</p>
+                        <div class="chart-donut-wrap">
+                            <canvas id="chartSlotsDonut" aria-label="Slot occupancy chart"></canvas>
+                            <div class="chart-donut-center">
+                                <strong id="slots-donut-label">—</strong>
+                                <span id="slots-donut-sublabel">occupied</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card admin-chart-panel">
+                        <h3><i class="fas fa-calendar-check"></i> Reservations</h3>
+                        <p class="chart-subtitle">Active vs other statuses (all time)</p>
+                        <div class="chart-donut-wrap">
+                            <canvas id="chartResDonut" aria-label="Reservations chart"></canvas>
+                            <div class="chart-donut-center">
+                                <strong id="res-donut-label">—</strong>
+                                <span id="res-donut-sublabel">active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-card admin-chart-wide">
+                    <h3><i class="fas fa-chart-column"></i> Reservations by day</h3>
+                    <p class="chart-subtitle">New reservations created in the last 7 days</p>
+                    <div class="admin-chart-canvas-tall">
+                        <canvas id="chartByDay" aria-label="Reservations by day"></canvas>
+                    </div>
+                </div>
+
+                <div class="dashboard-card admin-chart-wide">
+                    <h3><i class="fas fa-ranking-star"></i> Top slots by usage</h3>
+                    <p class="chart-subtitle">Most booked slots (non-cancelled)</p>
+                    <div class="admin-chart-canvas-mid">
+                        <canvas id="chartTopSlots" aria-label="Top slots chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="dashboard-card admin-audit-card">
+                    <details class="admin-audit-details">
+                        <summary class="admin-audit-summary">
+                            <span class="admin-section-title admin-audit-summary-title"><i class="fas fa-list-alt"></i> Audit log</span>
+                            <span class="admin-audit-hint">Show</span>
+                            <i class="fas fa-chevron-down admin-audit-chevron" aria-hidden="true"></i>
+                        </summary>
+                        <div class="admin-audit-body">
+                            <div id="audit-log" class="table-container">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h2 class="admin-section-title" style="margin-bottom:1rem;"><i class="fas fa-users"></i> All users</h2>
+                        <div id="users-list" class="table-container">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <h2 class="admin-section-title" style="margin-bottom:1rem;"><i class="fas fa-calendar"></i> All reservations</h2>
+                        <div id="reservations-list" class="table-container">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="admin-paid-modal" class="admin-paid-modal" aria-hidden="true" role="presentation">
+        <div class="admin-paid-modal-backdrop" tabindex="-1" aria-hidden="true"></div>
+        <div class="admin-paid-modal-panel" role="dialog" aria-modal="true" aria-labelledby="admin-paid-modal-title">
+            <button type="button" class="admin-paid-modal-close" aria-label="Close">&times;</button>
+            <div class="admin-paid-modal-header">
+                <div class="admin-paid-modal-icon-wrap"><i class="fas fa-receipt" aria-hidden="true"></i></div>
+                <h3 id="admin-paid-modal-title">Payment received</h3>
+                <p class="admin-paid-modal-sub">Reservation details</p>
+            </div>
+            <div class="admin-paid-modal-body">
+                <div class="admin-paid-row">
+                    <div class="admin-paid-row-icon" aria-hidden="true"><i class="fas fa-hashtag"></i></div>
+                    <div class="admin-paid-row-text">
+                        <span class="admin-paid-row-label">Reservation</span>
+                        <span class="admin-paid-row-value" id="admin-paid-val-id"></span>
+                    </div>
+                </div>
+                <div class="admin-paid-row">
+                    <div class="admin-paid-row-icon" aria-hidden="true"><i class="fas fa-parking"></i></div>
+                    <div class="admin-paid-row-text">
+                        <span class="admin-paid-row-label">Slot</span>
+                        <span class="admin-paid-row-value" id="admin-paid-val-slot"></span>
+                    </div>
+                </div>
+                <div class="admin-paid-row">
+                    <div class="admin-paid-row-icon" aria-hidden="true"><i class="fas fa-car-side"></i></div>
+                    <div class="admin-paid-row-text">
+                        <span class="admin-paid-row-label">Vehicle</span>
+                        <span class="admin-paid-row-value" id="admin-paid-val-car"></span>
+                    </div>
+                </div>
+                <div class="admin-paid-amount-card" id="admin-paid-amount-card">
+                    <div class="admin-paid-amount-card-label"><i class="fas fa-dollar-sign" aria-hidden="true"></i> Amount paid</div>
+                    <div class="admin-paid-amount-card-value" id="admin-paid-val-amount"></div>
+                    <p class="admin-paid-amount-hint" id="admin-paid-amount-hint"></p>
+                </div>
+            </div>
+            <div class="admin-paid-modal-footer">
+                <button type="button" class="btn btn-primary admin-paid-modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        (function chartTheme() {
+            if (typeof Chart === 'undefined') return;
+            Chart.defaults.font.family = "'Inter', 'Segoe UI', system-ui, sans-serif";
+            Chart.defaults.color = '#64748b';
+        })();
+
+        const ADMIN_COLORS = {
+            indigo: '#4f46e5',
+            violet: '#6366f1',
+            light: '#818cf8',
+            sky: '#93c5fd',
+            pale: '#bfdbfe',
+            deep: '#3730a3',
+            muted: '#e2e8f0'
+        };
+
+        const adminCharts = {};
+
+        function destroyAdminChart(key) {
+            if (adminCharts[key]) {
+                adminCharts[key].destroy();
+                adminCharts[key] = null;
+            }
+        }
+
+        checkAuth();
+
+        (async function ensureAdmin() {
+            let user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (!user.is_admin) {
+                try {
+                    const me = await api.getMe();
+                    user = me;
+                    localStorage.setItem('user', JSON.stringify(me));
+                } catch (e) {
+                    alert('Access denied. Admin only.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+            }
+            if (!user.is_admin) {
+                alert('Access denied. Admin only.');
+                window.location.href = '/dashboard.html';
+                return;
+            }
+            if (typeof window.refreshShellUser === 'function') window.refreshShellUser();
+            loadAdminData();
+            setInterval(loadAdminData, 10000);
+        })();
+
+        (function initAuditLogCollapse() {
+            var det = document.querySelector('.admin-audit-details');
+            if (!det) return;
+            var hint = det.querySelector('.admin-audit-hint');
+            function syncHint() {
+                if (hint) hint.textContent = det.open ? 'Hide' : 'Show';
+            }
+            det.addEventListener('toggle', syncHint);
+            syncHint();
+        })();
+
+        function drawSlotsDonut(stats) {
+            if (typeof Chart === 'undefined') return;
+            destroyAdminChart('slots');
+            const canvas = document.getElementById('chartSlotsDonut');
+            if (!canvas) return;
+            const total = Number(stats.total_slots) || 0;
+            const occ = Number(stats.occupied_slots) || 0;
+            const avail = Math.max(0, total - occ);
+            const pct = total ? Math.round((occ / total) * 100) : 0;
+            document.getElementById('slots-donut-label').textContent = total ? pct + '%' : '—';
+            document.getElementById('slots-donut-sublabel').textContent = total ? 'occupied' : 'no data';
+
+            const ctx = canvas.getContext('2d');
+            if (!total) {
+                adminCharts.slots = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['No slots'],
+                        datasets: [{ data: [1], backgroundColor: [ADMIN_COLORS.muted], borderWidth: 0 }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                    }
+                });
+                return;
+            }
+            adminCharts.slots = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Occupied', 'Available'],
+                    datasets: [{
+                        data: [occ, avail],
+                        backgroundColor: [ADMIN_COLORS.indigo, ADMIN_COLORS.pale],
+                        borderWidth: 0,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { usePointStyle: true, padding: 14, color: '#475569' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function drawReservationsDonut(stats) {
+            if (typeof Chart === 'undefined') return;
+            destroyAdminChart('res');
+            const canvas = document.getElementById('chartResDonut');
+            if (!canvas) return;
+            const total = Number(stats.total_reservations) || 0;
+            const active = Number(stats.active_reservations) || 0;
+            const other = Math.max(0, total - active);
+            const activePct = total ? Math.round((active / total) * 100) : 0;
+            document.getElementById('res-donut-label').textContent = total ? activePct + '%' : '—';
+            document.getElementById('res-donut-sublabel').textContent = total ? 'active' : 'no data';
+
+            const ctx = canvas.getContext('2d');
+            if (!total) {
+                adminCharts.res = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['No data'],
+                        datasets: [{ data: [1], backgroundColor: [ADMIN_COLORS.muted], borderWidth: 0 }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: { legend: { display: false }, tooltip: { enabled: false } }
+                    }
+                });
+                return;
+            }
+            adminCharts.res = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Active', 'Other'],
+                    datasets: [{
+                        data: [active, other],
+                        backgroundColor: [ADMIN_COLORS.violet, ADMIN_COLORS.sky],
+                        borderWidth: 0,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { usePointStyle: true, padding: 14, color: '#475569' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function drawByDayChart(byDay) {
+            if (typeof Chart === 'undefined') return;
+            destroyAdminChart('byDay');
+            const canvas = document.getElementById('chartByDay');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const labels = byDay.map(function (d) {
+                try {
+                    const parts = d.day.split('-');
+                    if (parts.length === 3) return parts[2] + '.' + parts[1];
+                } catch (e) {}
+                return d.day;
+            });
+            const values = byDay.map(function (d) { return d.count; });
+            const colors = values.map(function (_, i) {
+                return i % 2 === 0 ? ADMIN_COLORS.indigo : ADMIN_COLORS.sky;
+            });
+
+            adminCharts.byDay = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['—'],
+                    datasets: [{
+                        label: 'Reservations',
+                        data: labels.length ? values : [0],
+                        backgroundColor: labels.length ? colors : ADMIN_COLORS.muted,
+                        borderRadius: 10,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: function (items) {
+                                    const i = items[0].dataIndex;
+                                    return byDay[i] ? byDay[i].day : '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#64748b', maxRotation: 0 }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1, precision: 0, color: '#64748b' },
+                            grid: { color: 'rgba(148, 163, 184, 0.2)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function drawTopSlotsChart(topSlots) {
+            if (typeof Chart === 'undefined') return;
+            destroyAdminChart('topSlots');
+            const canvas = document.getElementById('chartTopSlots');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const palette = [ADMIN_COLORS.deep, ADMIN_COLORS.indigo, ADMIN_COLORS.violet, ADMIN_COLORS.light, ADMIN_COLORS.sky, ADMIN_COLORS.pale];
+            const take = topSlots.slice(0, 8);
+            if (!take.length) {
+                adminCharts.topSlots = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['—'],
+                        datasets: [{ label: 'Bookings', data: [0], backgroundColor: ADMIN_COLORS.muted, borderRadius: 8 }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, grid: { color: 'rgba(148, 163, 184, 0.2)' } },
+                            y: { grid: { display: false } }
+                        }
+                    }
+                });
+                return;
+            }
+            adminCharts.topSlots = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: take.map(function (s) { return s.slot_number + (s.zone ? ' (' + s.zone + ')' : ''); }),
+                    datasets: [{
+                        label: 'Reservations',
+                        data: take.map(function (s) { return s.reservation_count; }),
+                        backgroundColor: take.map(function (_, i) { return palette[i % palette.length]; }),
+                        borderRadius: 8,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1, precision: 0, color: '#64748b' },
+                            grid: { color: 'rgba(148, 163, 184, 0.2)' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#475569', font: { size: 11 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadAdminData() {
+            try {
+                const stats = await api.getAdminStats();
+                document.getElementById('total-users').textContent = stats.total_users;
+                document.getElementById('total-cars').textContent = stats.total_cars;
+                document.getElementById('total-slots').textContent = stats.total_slots;
+                document.getElementById('occupied-slots').textContent = stats.occupied_slots ?? '-';
+                document.getElementById('total-reservations').textContent = stats.total_reservations;
+                document.getElementById('active-reservations').textContent = stats.active_reservations ?? '-';
+                drawSlotsDonut(stats);
+                drawReservationsDonut(stats);
+                loadUsers();
+                loadAllReservations();
+                loadAnalyticsCharts();
+                loadAuditLog();
+            } catch (error) {
+                console.error('Error loading admin data:', error);
+                var sg = document.getElementById('admin-stats');
+                if (sg) sg.innerHTML = '<div class="error-message" style="grid-column:1/-1;">Failed to load admin data. Make sure you are logged in as admin.</div>';
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const users = await api.getAdminUsers();
+                const container = document.getElementById('users-list');
+                if (users.length === 0) {
+                    container.innerHTML = '<p class="muted">No users found.</p>';
+                    return;
+                }
+                container.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Phone</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Admin</th>
+                                <th>Active</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${users.map(u => `
+                                <tr>
+                                    <td>${u.id}</td>
+                                    <td>${u.phone}</td>
+                                    <td>${u.name || 'N/A'}</td>
+                                    <td>${u.email || 'N/A'}</td>
+                                    <td>${u.is_admin ? '<i class="fas fa-check"></i>' : ''}</td>
+                                    <td>${u.is_active !== false ? '<span class="badge badge-active">Yes</span>' : '<span class="badge badge-cancelled">No</span>'}</td>
+                                    <td>${!u.is_admin ? `<button type="button" class="btn btn-small ${u.is_active !== false ? 'btn-danger' : 'btn-primary'}" onclick="toggleUserActive(${u.id}, ${u.is_active !== false})">${u.is_active !== false ? 'Disable' : 'Enable'}</button>` : '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                document.getElementById('users-list').innerHTML = '<p class="error-message">Error loading users.</p>';
+            }
+        }
+
+        function escapeAttr(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;');
+        }
+
+        function closeAdminPaidModal() {
+            var m = document.getElementById('admin-paid-modal');
+            if (!m) return;
+            m.classList.remove('is-open');
+            m.setAttribute('aria-hidden', 'true');
+        }
+
+        function openAdminPaidModal() {
+            var m = document.getElementById('admin-paid-modal');
+            if (!m) return;
+            m.classList.add('is-open');
+            m.setAttribute('aria-hidden', 'false');
+        }
+
+        function initAdminPaidModal() {
+            var m = document.getElementById('admin-paid-modal');
+            if (!m || m.dataset.inited === '1') return;
+            m.dataset.inited = '1';
+            var backdrop = m.querySelector('.admin-paid-modal-backdrop');
+            var closeBtn = m.querySelector('.admin-paid-modal-close');
+            var okBtn = m.querySelector('.admin-paid-modal-ok');
+            backdrop.addEventListener('click', function (e) {
+                if (e.target === backdrop) closeAdminPaidModal();
+            });
+            closeBtn.addEventListener('click', closeAdminPaidModal);
+            okBtn.addEventListener('click', closeAdminPaidModal);
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape' && m.classList.contains('is-open')) closeAdminPaidModal();
+            });
+        }
+
+        function showAdminPaidAmount(amount, reservationId, slotLabel, carPlate) {
+            var n = amount == null || amount === '' ? NaN : Number(amount);
+            var m = document.getElementById('admin-paid-modal');
+            if (!m) {
+                var lines = [];
+                if (reservationId != null && !isNaN(Number(reservationId))) lines.push('Reservation #' + reservationId);
+                var meta = [slotLabel || '', carPlate || ''].filter(Boolean).join(' · ');
+                if (meta) lines.push(meta);
+                if (!isNaN(n)) lines.push('Paid amount: $' + n.toFixed(2));
+                else lines.push('Paid amount is not recorded.');
+                alert(lines.join('\n'));
+                return;
+            }
+            initAdminPaidModal();
+            document.getElementById('admin-paid-val-id').textContent =
+                reservationId != null && !isNaN(Number(reservationId)) ? '#' + reservationId : '—';
+            document.getElementById('admin-paid-val-slot').textContent = (slotLabel || '').trim() || '—';
+            document.getElementById('admin-paid-val-car').textContent = (carPlate || '').trim() || '—';
+            var amtWrap = document.getElementById('admin-paid-val-amount');
+            var hint = document.getElementById('admin-paid-amount-hint');
+            var card = document.getElementById('admin-paid-amount-card');
+            if (!isNaN(n)) {
+                amtWrap.textContent = '$' + n.toFixed(2);
+                amtWrap.classList.remove('admin-paid-amount-missing');
+                hint.textContent = 'Recorded payment for this reservation.';
+                if (card) card.classList.remove('admin-paid-amount-card-missing');
+            } else {
+                amtWrap.textContent = 'Not recorded';
+                amtWrap.classList.add('admin-paid-amount-missing');
+                hint.textContent = 'No amount was stored for this payment.';
+                if (card) card.classList.add('admin-paid-amount-card-missing');
+            }
+            openAdminPaidModal();
+        }
+
+        (function initAdminPaidBadgeClick() {
+            var container = document.getElementById('reservations-list');
+            if (!container || container.dataset.paidDelegate === '1') return;
+            container.dataset.paidDelegate = '1';
+            container.addEventListener('click', function (e) {
+                var btn = e.target.closest('.admin-payment-badge');
+                if (!btn) return;
+                e.preventDefault();
+                var id = parseInt(btn.getAttribute('data-reservation-id'), 10);
+                var raw = btn.getAttribute('data-amount');
+                var amt = raw === '' || raw == null ? null : raw;
+                var slot = btn.getAttribute('data-slot') || '';
+                var car = btn.getAttribute('data-car') || '';
+                showAdminPaidAmount(amt, id, slot, car);
+            });
+        })();
+
+        async function loadAllReservations() {
+            try {
+                const reservations = await api.getAdminReservations();
+                const container = document.getElementById('reservations-list');
+                if (reservations.length === 0) {
+                    container.innerHTML = '<p class="muted">No reservations found.</p>';
+                    return;
+                }
+                container.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Slot</th>
+                                <th>Car</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Status</th>
+                                <th>Payment</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${reservations.map(r => {
+                                var amtVal = r.amount != null && r.amount !== '' ? String(Number(r.amount)) : '';
+                                if (amtVal === 'NaN') amtVal = '';
+                                var payCell = r.payment_status === 'paid'
+                                    ? ('<button type="button" class="badge badge-paid admin-payment-badge" title="Click to see amount paid"'
+                                        + ' data-reservation-id="' + r.id + '"'
+                                        + ' data-amount="' + escapeAttr(amtVal) + '"'
+                                        + ' data-slot="' + escapeAttr(r.slot_number || '') + '"'
+                                        + ' data-car="' + escapeAttr(r.car_plate || '') + '">paid</button>')
+                                    : '<span class="badge badge-' + r.payment_status + '">' + r.payment_status + '</span>';
+                                return `
+                                <tr>
+                                    <td>${r.id}</td>
+                                    <td>${r.slot_number}</td>
+                                    <td>${r.car_plate}</td>
+                                    <td>${new Date(r.start_time).toLocaleString()}</td>
+                                    <td>${new Date(r.end_time).toLocaleString()}</td>
+                                    <td><span class="badge badge-${r.status}">${r.status}</span></td>
+                                    <td>${payCell}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                document.getElementById('reservations-list').innerHTML = '<p class="error-message">Error loading reservations.</p>';
+            }
+        }
+
+        async function loadAnalyticsCharts() {
+            try {
+                var byDay = await api.getAdminAnalyticsReservationsByDay(7);
+                var topSlots = await api.getAdminAnalyticsTopSlots(10);
+                drawByDayChart(Array.isArray(byDay) ? byDay : []);
+                drawTopSlotsChart(Array.isArray(topSlots) ? topSlots : []);
+            } catch (e) {
+                console.error(e);
+                drawByDayChart([]);
+                drawTopSlotsChart([]);
+            }
+        }
+
+        async function loadAuditLog() {
+            try {
+                const log = await api.getAdminAuditLog(50);
+                const container = document.getElementById('audit-log');
+                if (log.length === 0) { container.innerHTML = '<p class="muted">No audit entries yet.</p>'; return; }
+                container.innerHTML = `<table class="data-table"><thead><tr><th>Time</th><th>Action</th><th>User ID</th><th>Details</th></tr></thead><tbody>${log.map(e => `<tr><td>${new Date(e.created_at).toLocaleString()}</td><td>${e.action}</td><td>${e.user_id || '-'}</td><td>${e.details ? String(e.details).replace(/"/g, '') : '-'}</td></tr>`).join('')}</tbody></table>`;
+            } catch (e) {
+                document.getElementById('audit-log').innerHTML = '<p class="error-message">Error loading audit log.</p>';
+            }
+        }
+
+        async function toggleUserActive(userId, currentlyActive) {
+            if (confirm(currentlyActive ? 'Disable this user? They will not be able to log in.' : 'Enable this user?')) {
+                try {
+                    await api.updateUserActive(userId, !currentlyActive);
+                    loadUsers();
+                    loadAdminData();
+                } catch (e) {
+                    alert(e.message || 'Failed to update user');
+                }
+            }
+        }
+    </script>
+</body>
+</html>

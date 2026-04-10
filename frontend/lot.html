@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking slots - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link active"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+                <a href="/admin.html" id="nav-admin-item" class="app-sidebar-link" style="display: none;"><i class="fas fa-cog"></i><span>Admin</span></a>
+            </nav>
+            <div id="lot-sidebar-footer-guest" class="app-sidebar-footer">
+                <a href="/login.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Sign in</span>
+                    <span class="app-sidebar-cta-sub">Reserve slots &amp; manage cars</span>
+                </a>
+            </div>
+            <div id="lot-sidebar-footer-user" class="app-sidebar-footer" style="display: none;">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title"><span id="topbar-lot-title">Live parking</span></h1>
+            </div>
+            <div id="lot-topbar-guest" class="app-topbar-right lot-topbar-guest">
+                <a href="/login.html" class="btn btn-outline">Login</a>
+                <a href="/register.html" class="btn btn-primary">Sign up</a>
+            </div>
+            <div id="lot-topbar-user" class="app-topbar-right" style="display: none;">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page">
+            <div class="app-page-inner lot-page">
+                <div class="dashboard-card lot-hero-card">
+                    <a href="/map.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to map</a>
+                    <div class="lot-hero-main">
+                        <div class="lot-hero-icon" aria-hidden="true"><i class="fas fa-parking"></i></div>
+                        <div class="lot-hero-text">
+                            <h1 class="lot-hero-title"><span id="lot-name">Parking</span></h1>
+                            <p id="lot-address" class="lot-hero-address muted" style="display: none;"></p>
+                        </div>
+                        <div class="lot-hero-badges">
+                            <span id="lot-live-badge" class="lot-live-pill" style="display: none;">Live</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lot-stats-band">
+                    <div class="stat-card">
+                        <i class="fas fa-border-all"></i>
+                        <div class="stat-info">
+                            <h3 id="total-slots">-</h3>
+                            <p>Total</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-check-circle"></i>
+                        <div class="stat-info">
+                            <h3 id="available-slots">-</h3>
+                            <p>Available</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-car"></i>
+                        <div class="stat-info">
+                            <h3 id="occupied-slots">-</h3>
+                            <p>Occupied</p>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="dashboard-card lot-slots-board">
+                    <div class="lot-slots-board-head">
+                        <h2><i class="fas fa-th-large"></i> Slot status</h2>
+                        <p class="muted">Real-time occupancy (vision / sensors). Updates every few seconds.</p>
+                    </div>
+                    <div class="lot-slots-board-body">
+                        <div id="parking-grid" class="parking-grid lot-slots-grid" data-lot-id="">
+                            <div class="loading">Loading slots...</div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="lot-cta-bar">
+                    <a href="/dashboard.html" class="btn btn-primary"><i class="fas fa-calendar-plus"></i> Reserve a slot</a>
+                    <a href="/map.html" class="btn btn-outline">Other locations</a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        (function initNav() {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (token) {
+                document.getElementById('lot-topbar-guest').style.display = 'none';
+                document.getElementById('lot-topbar-user').style.display = 'flex';
+                document.getElementById('lot-sidebar-footer-guest').style.display = 'none';
+                document.getElementById('lot-sidebar-footer-user').style.display = 'block';
+                if (user.is_admin) document.getElementById('nav-admin-item').style.display = '';
+                if (typeof window.refreshShellUser === 'function') window.refreshShellUser();
+            }
+        })();
+
+        const params = new URLSearchParams(window.location.search);
+        const lotId = params.get('id');
+        if (!lotId) {
+            document.getElementById('parking-grid').innerHTML = '<p class="error-message">No parking lot selected. <a href="/map.html">Choose from map</a>.</p>';
+        } else {
+            const lid = parseInt(lotId, 10);
+            document.getElementById('parking-grid').setAttribute('data-lot-id', String(lid));
+            loadLotSlots(lid);
+            const streamHandle = connectSlotStream(handleSlotStreamMessage);
+            // SSE keeps overlays/stats in sync; only poll as a fallback when EventSource is unavailable.
+            if (!streamHandle) {
+                setInterval(function () { loadLotSlots(lid); }, 8000);
+            }
+        }
+
+        async function loadLotSlots(id) {
+            try {
+                const [slots, stats, lots, cfg] = await Promise.all([
+                    api.getSlotsStatus(id),
+                    api.getSlotStats(id),
+                    api.getLots(),
+                    getSlotsConfig(id)
+                ]);
+                const lot = lots.find(l => l.id === id);
+                if (lot) {
+                    document.getElementById('lot-name').textContent = lot.name || 'Parking';
+                    document.getElementById('topbar-lot-title').textContent = lot.name || 'Live parking';
+                    var reserveBtn = document.querySelector('.lot-cta-bar a.btn.btn-primary');
+                    if (reserveBtn) {
+                        reserveBtn.setAttribute('href', '/dashboard.html?lot_id=' + id);
+                    }
+                    if (lot.address) {
+                        const addr = document.getElementById('lot-address');
+                        addr.textContent = lot.address;
+                        addr.style.display = 'block';
+                    }
+                    const liveBadge = document.getElementById('lot-live-badge');
+                    if (lot.is_live) {
+                        liveBadge.style.display = 'inline-flex';
+                    } else {
+                        liveBadge.style.display = 'none';
+                    }
+                }
+                document.getElementById('total-slots').textContent = stats.total;
+                document.getElementById('available-slots').textContent = stats.available;
+                document.getElementById('occupied-slots').textContent = stats.occupied;
+
+                const container = document.getElementById('parking-grid');
+                const liveLots = lots.filter(l => l.is_live);
+
+                if (slots.length === 0 && (!lot || !lot.is_live)) {
+                    var links = liveLots.map(function (l) {
+                        return '<a href="/lot.html?id=' + l.id + '" class="btn btn-primary" style="margin-top:0.35rem;display:inline-block;">' + (l.name || 'Live lot') + ' →</a>';
+                    }).join(' ');
+                    container.innerHTML = '<div class="lot-empty-state">' +
+                        '<p><strong>This parking is under development.</strong></p>' +
+                        '<p>Try a live location:</p>' +
+                        (liveLots.length ? links : '<a href="/map.html" class="btn btn-primary" style="margin-top:0.5rem;">Back to map</a>') +
+                        '</div>';
+                    return;
+                }
+
+                if (lot && lot.is_live && cfg && Object.keys(cfg).length > 0) {
+                    container.classList.add('parking-map');
+                    await loadParkingStatus({
+                        containerId: 'parking-grid',
+                        lotId: id,
+                        statsLotId: id
+                    });
+                    return;
+                }
+
+                const sourceLabel = (src) => (src === 'sensor' ? 'Sensor' : src === 'fused' ? 'Fused' : 'Vision');
+                container.classList.remove('parking-map');
+                container.innerHTML = slots.map(slot => `
+                    <div class="slot-card ${slot.is_occupied ? 'occupied' : 'available'}" title="${slot.slot_number} - ${slot.zone || ''}">
+                        <div class="slot-number">${slot.slot_number}</div>
+                        <div class="slot-status">${slot.is_occupied ? 'Occupied' : 'Available'}</div>
+                        ${slot.zone ? '<div class="slot-zone">Zone ' + slot.zone + '</div>' : ''}
+                        ${slot.occupation_source ? '<span class="slot-source lot-source-pill">' + sourceLabel(slot.occupation_source) + '</span>' : ''}
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('parking-grid').innerHTML = '<div class="error-message">Failed to load slots. <a href="/map.html">Back to map</a>.</div>';
+            }
+        }
+    </script>
+</body>
+</html>

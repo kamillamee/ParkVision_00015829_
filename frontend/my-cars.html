@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cars - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link active"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">My cars</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page">
+            <div class="app-page-inner">
+                <div class="action-bar" style="margin-top:0">
+                    <button class="btn btn-primary" onclick="showAddCarModal()">
+                        <i class="fas fa-plus"></i> Add car
+                    </button>
+                </div>
+
+                <div id="cars-list" class="cards-grid">
+                    <div class="loading">Loading cars...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="car-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCarModal()">&times;</span>
+            <h2 id="modal-title">Add Car</h2>
+            <form id="car-form">
+                <input type="hidden" id="car-id">
+                <div class="form-group">
+                    <label>Plate Number *</label>
+                    <input type="text" id="plate-number" required>
+                </div>
+                <div class="form-group">
+                    <label>Brand</label>
+                    <input type="text" id="brand">
+                </div>
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="model">
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="text" id="color">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        checkAuth();
+        loadCars();
+
+        document.getElementById('car-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const carData = {
+                plate_number: document.getElementById('plate-number').value,
+                brand: document.getElementById('brand').value || null,
+                model: document.getElementById('model').value || null,
+                color: document.getElementById('color').value || null
+            };
+
+            const carId = document.getElementById('car-id').value;
+
+            try {
+                if (carId) {
+                    await api.updateCar(carId, carData);
+                } else {
+                    await api.addCar(carData);
+                }
+                closeCarModal();
+                loadCars();
+            } catch (error) {
+                alert('Error: ' + (error.message || 'Failed to save car'));
+            }
+        });
+
+        async function loadCars() {
+            try {
+                const cars = await api.getMyCars();
+                const container = document.getElementById('cars-list');
+
+                if (cars.length === 0) {
+                    container.innerHTML = '<p class="muted">No cars registered. Add your first car!</p>';
+                    return;
+                }
+
+                container.innerHTML = cars.map(car => `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-car"></i> ${car.plate_number}</h3>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Brand:</strong> ${car.brand || 'N/A'}</p>
+                            <p><strong>Model:</strong> ${car.model || 'N/A'}</p>
+                            <p><strong>Color:</strong> ${car.color || 'N/A'}</p>
+                        </div>
+                        <div class="card-footer">
+                            <button class="btn btn-outline" onclick="editCar(${car.id})">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteCar(${car.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading cars:', error);
+                const container = document.getElementById('cars-list');
+                container.innerHTML = `<div class="error-message">Error loading cars: ${error.message || 'Unknown error'}</div>`;
+            }
+        }
+
+        function showAddCarModal() {
+            document.getElementById('modal-title').textContent = 'Add Car';
+            document.getElementById('car-id').value = '';
+            document.getElementById('car-form').reset();
+            document.getElementById('car-modal').style.display = 'block';
+        }
+
+        async function editCar(carId) {
+            try {
+                const cars = await api.getMyCars();
+                const car = cars.find(c => c.id === carId);
+                if (!car) return;
+
+                document.getElementById('modal-title').textContent = 'Edit Car';
+                document.getElementById('car-id').value = car.id;
+                document.getElementById('plate-number').value = car.plate_number;
+                document.getElementById('brand').value = car.brand || '';
+                document.getElementById('model').value = car.model || '';
+                document.getElementById('color').value = car.color || '';
+                document.getElementById('car-modal').style.display = 'block';
+            } catch (error) {
+                alert('Error loading car: ' + error.message);
+            }
+        }
+
+        async function deleteCar(carId) {
+            if (!confirm('Are you sure you want to delete this car?')) return;
+
+            try {
+                await api.deleteCar(carId);
+                loadCars();
+            } catch (error) {
+                alert('Error: ' + (error.message || 'Failed to delete car'));
+            }
+        }
+
+        function closeCarModal() {
+            document.getElementById('car-modal').style.display = 'none';
+        }
+
+        window.onclick = function (event) {
+            const modal = document.getElementById('car-modal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>

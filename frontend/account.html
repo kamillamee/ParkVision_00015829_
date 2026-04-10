@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link active"><i class="fas fa-user"></i><span>Account</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Account</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page">
+            <div class="app-page-inner">
+                <div class="profile-hero">
+                    <div class="profile-hero-avatar js-profile-initial">U</div>
+                    <div class="profile-hero-body">
+                        <h2 id="profile-display-name">Your profile</h2>
+                        <div class="profile-hero-meta">
+                            <span><i class="fas fa-phone"></i><span id="profile-phone-display">—</span></span>
+                            <span id="profile-email-wrap"><i class="fas fa-envelope"></i><a id="profile-email-link" href="#">Add email</a></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card">
+                        <h2><i class="fas fa-id-card"></i> Profile information</h2>
+                        <form id="profile-form">
+                            <div class="form-group">
+                                <label>Phone Number</label>
+                                <input type="tel" id="phone" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" id="name">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="email">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update profile</button>
+                        </form>
+                    </div>
+
+                    <div class="dashboard-card">
+                        <h2><i class="fas fa-lock"></i> Change password</h2>
+                        <form id="password-form">
+                            <div class="form-group">
+                                <label>Old Password</label>
+                                <input type="password" id="old-password" required>
+                            </div>
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <input type="password" id="new-password" required minlength="6">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Change password</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        checkAuth();
+        loadProfile();
+
+        function syncProfileHero(user) {
+            var name = (user.name || user.phone || 'User').trim();
+            document.getElementById('profile-display-name').textContent = name;
+            document.getElementById('profile-phone-display').textContent = user.phone || '—';
+            var initial = name.charAt(0).toUpperCase();
+            document.querySelectorAll('.js-profile-initial').forEach(function (el) {
+                el.textContent = initial;
+            });
+            var emailLink = document.getElementById('profile-email-link');
+            if (user.email) {
+                emailLink.href = 'mailto:' + user.email;
+                emailLink.textContent = user.email;
+            } else {
+                emailLink.href = '#';
+                emailLink.textContent = 'Add email below';
+            }
+            if (typeof window.refreshShellUser === 'function') window.refreshShellUser();
+        }
+
+        document.getElementById('profile-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value || null;
+            const email = document.getElementById('email').value || null;
+
+            try {
+                await api.updateMe({ name, email });
+                const user = await api.getMe();
+                localStorage.setItem('user', JSON.stringify(user));
+                syncProfileHero(user);
+                alert('Profile updated successfully!');
+            } catch (error) {
+                alert('Error: ' + (error.message || 'Failed to update profile'));
+            }
+        });
+
+        document.getElementById('password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const oldPassword = document.getElementById('old-password').value;
+            const newPassword = document.getElementById('new-password').value;
+
+            try {
+                await api.changePassword({
+                    old_password: oldPassword,
+                    new_password: newPassword
+                });
+                alert('Password changed successfully!');
+                document.getElementById('password-form').reset();
+            } catch (error) {
+                alert('Error: ' + (error.message || 'Failed to change password'));
+            }
+        });
+
+        async function loadProfile() {
+            try {
+                const user = await api.getMe();
+                localStorage.setItem('user', JSON.stringify(user));
+                document.getElementById('phone').value = user.phone;
+                document.getElementById('name').value = user.name || '';
+                document.getElementById('email').value = user.email || '';
+                syncProfileHero(user);
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        }
+    </script>
+</body>
+</html>

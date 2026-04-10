@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slots Editor - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <span>Smart Vision</span>
+            </div>
+            <div class="nav-links">
+                <a href="/dashboard.html" class="nav-link">Dashboard</a>
+                <a href="/slots-editor.html" class="nav-link active">Slots Editor</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard">
+        <div class="container">
+            <h1>Slot Polygon Editor</h1>
+            <p class="muted">
+                Click four corners for each slot, then save it. Coordinates are saved in image pixels.
+            </p>
+
+            <div class="editor-grid">
+                <div class="editor-canvas-wrap">
+                    <canvas id="editor-canvas"></canvas>
+                </div>
+                <div class="editor-panel">
+                    <div class="form-group">
+                        <label for="slot-name">Slot name</label>
+                        <input id="slot-name" type="text" placeholder="A1">
+                    </div>
+                    <div class="editor-actions">
+                        <button id="save-slot" class="btn btn-primary" disabled>Save slot</button>
+                        <button id="undo-point" class="btn btn-outline">Undo point</button>
+                        <button id="clear-current" class="btn btn-outline">Clear current</button>
+                    </div>
+                    <div class="editor-actions">
+                        <button id="load-existing" class="btn btn-outline">Load existing</button>
+                        <button id="clear-all" class="btn btn-outline">Clear all slots</button>
+                    </div>
+
+                    <h3>Current slot points</h3>
+                    <pre id="current-points" class="code-block">[]</pre>
+
+                    <h3>All slots JSON</h3>
+                    <textarea id="slots-json" rows="12"></textarea>
+                    <div class="editor-actions">
+                        <button id="copy-json" class="btn btn-outline">Copy JSON</button>
+                        <button id="download-json" class="btn btn-outline">Download slots.json</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/slot_editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reservations - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link active"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Reservations</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page">
+            <div class="app-page-inner">
+                <div id="reservations-list">
+                    <div class="loading">Loading reservations...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="reservation-cancel-confirm-modal" class="reservation-cancel-modal" aria-hidden="true" role="presentation">
+        <div class="reservation-cancel-modal-backdrop" tabindex="-1" aria-hidden="true"></div>
+        <div class="reservation-cancel-modal-panel" role="dialog" aria-modal="true" aria-labelledby="reservation-cancel-title" aria-describedby="reservation-cancel-lede">
+            <button type="button" class="reservation-cancel-modal-close" aria-label="Close">&times;</button>
+            <div class="reservation-cancel-modal-header">
+                <div class="reservation-cancel-modal-icon-wrap" aria-hidden="true"><i class="fas fa-calendar-times"></i></div>
+                <h3 id="reservation-cancel-title">Cancel this reservation?</h3>
+                <p class="reservation-cancel-lede" id="reservation-cancel-lede">You are about to release this parking spot. This action cannot be undone.</p>
+            </div>
+            <div class="reservation-cancel-modal-body">
+                <div class="reservation-cancel-summary">
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-parking" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">Slot</span><span class="reservation-cancel-summary-value" id="rcc-summary-slot"></span></div>
+                    </div>
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-car-side" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">Vehicle</span><span class="reservation-cancel-summary-value" id="rcc-summary-plate"></span></div>
+                    </div>
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-calendar" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">Start</span><span class="reservation-cancel-summary-value" id="rcc-summary-start"></span></div>
+                    </div>
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-calendar" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">End</span><span class="reservation-cancel-summary-value" id="rcc-summary-end"></span></div>
+                    </div>
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-dollar-sign" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">Amount</span><span class="reservation-cancel-summary-value" id="rcc-summary-amount"></span></div>
+                    </div>
+                    <div class="reservation-cancel-summary-row">
+                        <i class="fas fa-credit-card" aria-hidden="true"></i>
+                        <div><span class="reservation-cancel-summary-label">Payment</span><span class="reservation-cancel-summary-value" id="rcc-summary-payment"></span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="reservation-cancel-modal-footer">
+                <div class="reservation-cancel-modal-actions">
+                    <button type="button" class="btn btn-outline" id="rcc-btn-keep">Keep reservation</button>
+                    <button type="button" class="btn btn-danger" id="rcc-btn-confirm">Yes, cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rcr-feedback-modal" class="reserve-feedback-modal" aria-hidden="true" role="presentation">
+        <div class="reserve-feedback-modal-backdrop" tabindex="-1" aria-hidden="true"></div>
+        <div class="reserve-feedback-modal-panel" role="alertdialog" aria-modal="true" aria-labelledby="rcr-feedback-title" aria-describedby="rcr-feedback-message">
+            <button type="button" class="reserve-feedback-modal-close" aria-label="Close">&times;</button>
+            <div class="reserve-feedback-modal-header">
+                <div class="reserve-feedback-modal-icon-wrap" id="rcr-feedback-icon" aria-hidden="true"><i class="fas fa-check"></i></div>
+                <h3 id="rcr-feedback-title"></h3>
+                <p class="reserve-feedback-modal-message" id="rcr-feedback-message"></p>
+            </div>
+            <div class="reserve-feedback-modal-footer">
+                <button type="button" class="btn btn-primary" id="rcr-feedback-ok"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        checkAuth();
+
+        function escapeAttr(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;');
+        }
+
+        var pendingCancelReservationId = null;
+        var rcrFeedbackPendingOk = null;
+
+        function closeReservationCancelConfirmModal() {
+            var m = document.getElementById('reservation-cancel-confirm-modal');
+            if (!m) return;
+            m.classList.remove('is-open');
+            m.setAttribute('aria-hidden', 'true');
+            pendingCancelReservationId = null;
+        }
+
+        function openReservationCancelConfirmModal(detail) {
+            initReservationCancelConfirmModal();
+            pendingCancelReservationId = detail.id;
+            document.getElementById('rcc-summary-slot').textContent = detail.slot || '—';
+            document.getElementById('rcc-summary-plate').textContent = detail.plate || '—';
+            var startStr = detail.start ? new Date(detail.start).toLocaleString() : '—';
+            var endStr = detail.end ? new Date(detail.end).toLocaleString() : '—';
+            document.getElementById('rcc-summary-start').textContent = startStr;
+            document.getElementById('rcc-summary-end').textContent = endStr;
+            var amt = detail.amount != null && String(detail.amount).trim() !== ''
+                ? '$' + Number(detail.amount).toFixed(2)
+                : '—';
+            document.getElementById('rcc-summary-amount').textContent = amt;
+            document.getElementById('rcc-summary-payment').textContent = detail.payment || '—';
+            var m = document.getElementById('reservation-cancel-confirm-modal');
+            m.classList.add('is-open');
+            m.setAttribute('aria-hidden', 'false');
+        }
+
+        function initReservationCancelConfirmModal() {
+            var m = document.getElementById('reservation-cancel-confirm-modal');
+            if (!m || m.dataset.inited === '1') return;
+            m.dataset.inited = '1';
+            var backdrop = m.querySelector('.reservation-cancel-modal-backdrop');
+            var closeBtn = m.querySelector('.reservation-cancel-modal-close');
+            var keepBtn = document.getElementById('rcc-btn-keep');
+            var confirmBtn = document.getElementById('rcc-btn-confirm');
+            backdrop.addEventListener('click', function (e) {
+                if (e.target === backdrop) closeReservationCancelConfirmModal();
+            });
+            closeBtn.addEventListener('click', closeReservationCancelConfirmModal);
+            keepBtn.addEventListener('click', closeReservationCancelConfirmModal);
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key !== 'Escape') return;
+                if (m.classList.contains('is-open')) closeReservationCancelConfirmModal();
+            });
+            confirmBtn.addEventListener('click', async function () {
+                var id = pendingCancelReservationId;
+                if (!id) return;
+                closeReservationCancelConfirmModal();
+                try {
+                    await api.cancelReservation(id);
+                    openRcrFeedbackModal({
+                        variant: 'success',
+                        title: 'Reservation cancelled',
+                        message: 'Your booking has been cancelled and the spot may be available for others.',
+                        buttonText: 'OK',
+                        onOk: loadReservations
+                    });
+                } catch (error) {
+                    openRcrFeedbackModal({
+                        variant: 'error',
+                        title: 'Could not cancel',
+                        message: error.message || 'Failed to cancel reservation. Please try again.',
+                        buttonText: 'OK'
+                    });
+                }
+            });
+        }
+
+        function closeRcrFeedbackModal() {
+            var m = document.getElementById('rcr-feedback-modal');
+            if (!m) return;
+            m.classList.remove('is-open');
+            m.setAttribute('aria-hidden', 'true');
+        }
+
+        function initRcrFeedbackModal() {
+            var m = document.getElementById('rcr-feedback-modal');
+            if (!m || m.dataset.inited === '1') return;
+            m.dataset.inited = '1';
+            var backdrop = m.querySelector('.reserve-feedback-modal-backdrop');
+            var closeBtn = m.querySelector('.reserve-feedback-modal-close');
+            var okBtn = document.getElementById('rcr-feedback-ok');
+            backdrop.addEventListener('click', function (e) {
+                if (e.target === backdrop) {
+                    var fn = rcrFeedbackPendingOk;
+                    closeRcrFeedbackModal();
+                    rcrFeedbackPendingOk = null;
+                    if (typeof fn === 'function') fn();
+                }
+            });
+            closeBtn.addEventListener('click', function () {
+                var fn = rcrFeedbackPendingOk;
+                closeRcrFeedbackModal();
+                rcrFeedbackPendingOk = null;
+                if (typeof fn === 'function') fn();
+            });
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape' && m.classList.contains('is-open')) {
+                    var fn = rcrFeedbackPendingOk;
+                    closeRcrFeedbackModal();
+                    rcrFeedbackPendingOk = null;
+                    if (typeof fn === 'function') fn();
+                }
+            });
+            okBtn.addEventListener('click', function () {
+                var fn = rcrFeedbackPendingOk;
+                closeRcrFeedbackModal();
+                rcrFeedbackPendingOk = null;
+                if (typeof fn === 'function') fn();
+            });
+        }
+
+        function openRcrFeedbackModal(cfg) {
+            initRcrFeedbackModal();
+            var m = document.getElementById('rcr-feedback-modal');
+            if (!m) return;
+            var iconEl = document.getElementById('rcr-feedback-icon');
+            var variant = cfg.variant === 'error' ? 'error' : 'success';
+            iconEl.className = 'reserve-feedback-modal-icon-wrap is-' + variant;
+            iconEl.innerHTML = variant === 'error'
+                ? '<i class="fas fa-exclamation-circle"></i>'
+                : '<i class="fas fa-check"></i>';
+            document.getElementById('rcr-feedback-title').textContent = cfg.title || '';
+            document.getElementById('rcr-feedback-message').textContent = cfg.message || '';
+            document.getElementById('rcr-feedback-ok').textContent = cfg.buttonText || 'OK';
+            rcrFeedbackPendingOk = cfg.onOk || null;
+            m.classList.add('is-open');
+            m.setAttribute('aria-hidden', 'false');
+        }
+
+        (function initReservationCancelDelegation() {
+            var list = document.getElementById('reservations-list');
+            if (!list || list.dataset.cancelDelegate === '1') return;
+            list.dataset.cancelDelegate = '1';
+            list.addEventListener('click', function (e) {
+                var btn = e.target.closest('.reservation-cancel-btn');
+                if (!btn) return;
+                e.preventDefault();
+                var id = parseInt(btn.getAttribute('data-reservation-id'), 10);
+                if (isNaN(id)) return;
+                openReservationCancelConfirmModal({
+                    id: id,
+                    slot: btn.getAttribute('data-slot') || '',
+                    plate: btn.getAttribute('data-plate') || '',
+                    start: btn.getAttribute('data-start') || '',
+                    end: btn.getAttribute('data-end') || '',
+                    amount: btn.getAttribute('data-amount'),
+                    payment: btn.getAttribute('data-payment') || ''
+                });
+            });
+        })();
+
+        loadReservations();
+
+        async function loadReservations() {
+            try {
+                const reservations = await api.getMyReservations();
+                const container = document.getElementById('reservations-list');
+
+                if (reservations.length === 0) {
+                    container.innerHTML = '<p class="muted">No reservations yet. <a href="/dashboard.html">Make your first reservation!</a></p>';
+                    return;
+                }
+
+                container.innerHTML = reservations.map(r => `
+                    <div class="card reservation-card">
+                        <div class="card-header">
+                            <h3>Slot ${r.slot_number} — ${r.car_plate}</h3>
+                            <span class="badge badge-${r.status}">${r.status}</span>
+                        </div>
+                        <div class="card-body">
+                            <p><i class="fas fa-calendar"></i> <strong>Start:</strong> ${new Date(r.start_time).toLocaleString()}</p>
+                            <p><i class="fas fa-calendar"></i> <strong>End:</strong> ${new Date(r.end_time).toLocaleString()}</p>
+                            <p><i class="fas fa-dollar-sign"></i> <strong>Amount:</strong> $${r.amount || 0}</p>
+                            <p><i class="fas fa-credit-card"></i> <strong>Payment:</strong> ${r.payment_status}</p>
+                        </div>
+                        <div class="card-footer">
+                            ${r.payment_status === 'pending' ?
+                                `<a href="/checkout.html?reservation_id=${r.id}" class="btn btn-primary">Pay now</a>` :
+                                ''
+                            }
+                            ${r.status !== 'cancelled' ?
+                                `<button type="button" class="btn btn-danger reservation-cancel-btn"
+                                    data-reservation-id="${r.id}"
+                                    data-slot="${escapeAttr(r.slot_number)}"
+                                    data-plate="${escapeAttr(r.car_plate)}"
+                                    data-start="${escapeAttr(r.start_time)}"
+                                    data-end="${escapeAttr(r.end_time)}"
+                                    data-amount="${escapeAttr(r.amount != null && r.amount !== '' ? r.amount : '')}"
+                                    data-payment="${escapeAttr(r.payment_status)}"
+                                >Cancel</button>` :
+                                ''
+                            }
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading reservations:', error);
+                const container = document.getElementById('reservations-list');
+                container.innerHTML = `<div class="error-message">Error loading reservations: ${error.message || 'Unknown error'}</div>`;
+            }
+        }
+
+    </script>
+</body>
+</html>

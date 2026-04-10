@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parking Map - Uzbekistan | Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/" class="app-sidebar-brand" id="map-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <div id="shell-nav-guest" class="app-sidebar-nav-block">
+                    <a href="/" class="app-sidebar-link"><i class="fas fa-home"></i><span>Home</span></a>
+                    <a href="/map.html" class="app-sidebar-link active"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                    <a href="/login.html" class="app-sidebar-link"><i class="fas fa-sign-in-alt"></i><span>Login</span></a>
+                    <a href="/register.html" class="app-sidebar-link"><i class="fas fa-user-plus"></i><span>Sign Up</span></a>
+                </div>
+                <div id="shell-nav-user" class="app-sidebar-nav-block" style="display: none;">
+                    <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                    <a href="/map.html" class="app-sidebar-link active"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                    <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                    <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                    <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                    <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+                    <a href="/admin.html" id="nav-admin-item-map" class="app-sidebar-link" style="display: none;"><i class="fas fa-cog"></i><span>Admin</span></a>
+                </div>
+            </nav>
+            <div class="app-sidebar-footer" id="sidebar-footer-guest">
+                <a href="/register.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Get started</span>
+                    <span class="app-sidebar-cta-sub">Create a free account</span>
+                </a>
+            </div>
+            <div class="app-sidebar-footer" id="sidebar-footer-user" style="display: none;">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Map</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="map-topbar-guest" id="map-topbar-guest">
+                    <a href="/login.html" class="btn btn-outline">Login</a>
+                    <a href="/register.html" class="btn btn-primary">Sign Up</a>
+                </div>
+                <div id="map-topbar-user" class="map-topbar-user" style="display: none;">
+                    <div class="app-user-chip">
+                        <span class="app-user-avatar js-shell-user-initial">U</span>
+                        <span class="app-user-meta">
+                            <span class="app-user-label">Signed in</span>
+                            <span class="js-shell-user-name app-user-name">User</span>
+                        </span>
+                    </div>
+                    <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="app-page map-page">
+            <div class="app-page-inner">
+                <header class="map-page-intro">
+                    <h2><i class="fas fa-map"></i> Uzbekistan parking map</h2>
+                    <div class="map-legend-row">
+                        <span class="map-legend-pill map-legend-pill-live" title="Live lot with real-time data">
+                            <span class="map-legend-pill-dot" aria-hidden="true"></span>
+                            LIVE
+                            <span class="map-legend-pill-meta">real time</span>
+                        </span>
+                        <span class="map-legend-pill map-legend-pill-soon" title="Coming soon">
+                            <span class="map-legend-pill-dot" aria-hidden="true"></span>
+                            Soon
+                            <span class="map-legend-pill-meta">in development</span>
+                        </span>
+                    </div>
+                </header>
+
+                <div class="map-shell-card">
+                    <div id="map" class="map-leaflet-host" role="region" aria-label="Interactive parking map"></div>
+                </div>
+                <div id="map-error" class="map-page-error" style="display: none;"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        (function initMapShell() {
+            var token = localStorage.getItem('token');
+            var user = {};
+            try {
+                user = JSON.parse(localStorage.getItem('user') || '{}');
+            } catch (e) {}
+            var guestNav = document.getElementById('shell-nav-guest');
+            var userNav = document.getElementById('shell-nav-user');
+            var guestFooter = document.getElementById('sidebar-footer-guest');
+            var userFooter = document.getElementById('sidebar-footer-user');
+            var topGuest = document.getElementById('map-topbar-guest');
+            var topUser = document.getElementById('map-topbar-user');
+            var brand = document.getElementById('map-sidebar-brand');
+            if (token) {
+                guestNav.style.display = 'none';
+                userNav.style.display = 'flex';
+                guestFooter.style.display = 'none';
+                userFooter.style.display = 'block';
+                topGuest.style.display = 'none';
+                topUser.style.display = 'flex';
+                brand.setAttribute('href', '/dashboard.html');
+                if (user.is_admin) {
+                    document.getElementById('nav-admin-item-map').style.display = '';
+                }
+            } else {
+                guestNav.style.display = 'flex';
+                userNav.style.display = 'none';
+                guestFooter.style.display = 'block';
+                userFooter.style.display = 'none';
+                topGuest.style.display = 'flex';
+                topUser.style.display = 'none';
+                brand.setAttribute('href', '/');
+            }
+            if (typeof window.refreshShellUser === 'function') window.refreshShellUser();
+        })();
+
+        function escapeMapHtml(s) {
+            if (s == null || s === '') return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        var mapEl = document.getElementById('map');
+        var errEl = document.getElementById('map-error');
+
+        var TASHKENT_CENTER = [41.2995, 69.2401];
+        var UZ_BOUNDS = [[36.5, 56.0], [45.5, 73.5]];
+
+        var mapInstance = null;
+        var markersLayer = null;
+
+        function createMarkerIcon(isLive) {
+            var cls = isLive ? 'map-marker-dot map-marker-dot--live' : 'map-marker-dot map-marker-dot--soon';
+            return L.divIcon({
+                className: 'custom-marker',
+                html: '<div class="' + cls + '" aria-hidden="true"></div>',
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
+            });
+        }
+
+        function updateMarkers(lots) {
+            if (!mapInstance || !markersLayer) return;
+            markersLayer.clearLayers();
+            var liveLots = lots.filter(function (l) { return l.is_live; });
+            lots.forEach(function (lot) {
+                var icon = createMarkerIcon(lot.is_live);
+                var marker = L.marker([lot.latitude, lot.longitude], { icon: icon }).addTo(markersLayer);
+                var popupClass = lot.is_live ? 'map-popup-live' : 'map-popup-soon';
+                var badge = lot.is_live
+                    ? '<span class="map-popup-badge map-popup-badge--live">LIVE</span>'
+                    : '<span class="map-popup-badge map-popup-badge--soon">Soon</span>';
+                var name = escapeMapHtml(lot.name || 'Parking');
+                var addr = lot.address ? '<p class="map-popup-addr">' + escapeMapHtml(lot.address) + '</p>' : '';
+                var popupHtml = '<div class="map-popup-inner ' + popupClass + '">' +
+                    '<div class="map-popup-title-row">' +
+                    '<span class="map-popup-name">' + name + '</span>' + badge + '</div>' + addr;
+                if (lot.is_live) {
+                    var av = lot.slots_available != null ? lot.slots_available : '—';
+                    var tot = lot.slots_total != null ? lot.slots_total : '—';
+                    popupHtml += '<p class="map-popup-meta"><i class="fas fa-layer-group" aria-hidden="true"></i> Available <strong>' + av + '</strong> / ' + tot + '</p>' +
+                        '<a href="/lot.html?id=' + lot.id + '" class="btn btn-primary btn-block map-popup-btn">Slots &amp; booking</a>';
+                } else {
+                    var liveUrl = '/map.html';
+                    if (liveLots.length === 1) {
+                        liveUrl = '/lot.html?id=' + liveLots[0].id;
+                    }
+                    popupHtml += '<p class="map-popup-muted">This location is under development.</p>' +
+                        '<a href="' + liveUrl + '" class="btn btn-outline btn-block map-popup-btn">' +
+                        (liveLots.length > 1 ? 'Browse live locations' : 'Try a live parking lot') + '</a>';
+                }
+                popupHtml += '</div>';
+                marker.bindPopup(popupHtml, { className: 'map-lot-popup', maxWidth: 280 });
+            });
+        }
+
+        async function loadAndUpdateMap() {
+            try {
+                var lots = await api.getLots();
+                if (!lots || lots.length === 0) {
+                    if (!mapInstance) {
+                        errEl.textContent = 'No parking lots to show yet.';
+                        errEl.style.display = 'block';
+                    }
+                    return;
+                }
+                errEl.style.display = 'none';
+
+                if (!mapInstance) {
+                    mapInstance = L.map('map', {
+                        maxBounds: UZ_BOUNDS,
+                        maxBoundsViscosity: 0.8,
+                        minZoom: 5,
+                        maxZoom: 18,
+                    }).setView(TASHKENT_CENTER, 11);
+
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    }).addTo(mapInstance);
+
+                    markersLayer = L.layerGroup().addTo(mapInstance);
+
+                    var liveLots = lots.filter(function (l) { return l.is_live; });
+                    if (liveLots.length === 1) {
+                        mapInstance.setView([liveLots[0].latitude, liveLots[0].longitude], 12);
+                    } else if (liveLots.length > 1) {
+                        var lg = L.featureGroup(liveLots.map(function (l) {
+                            return L.marker([l.latitude, l.longitude]);
+                        }));
+                        mapInstance.fitBounds(lg.getBounds().pad(0.2));
+                    } else if (lots.length === 1) {
+                        mapInstance.setView([lots[0].latitude, lots[0].longitude], 13);
+                    } else if (lots.length > 1) {
+                        var group = L.featureGroup(lots.map(function (l) {
+                            return L.marker([l.latitude, l.longitude]);
+                        }));
+                        mapInstance.fitBounds(group.getBounds().pad(0.15));
+                    }
+                }
+
+                updateMarkers(lots);
+            } catch (e) {
+                errEl.textContent = 'Could not load the map: ' + (e.message || 'Unknown error');
+                errEl.style.display = 'block';
+            }
+        }
+
+        loadAndUpdateMap();
+        setInterval(loadAndUpdateMap, 5000);
+    </script>
+</body>
+</html>

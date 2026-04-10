@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Methods - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link active"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Payment</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+    <main class="app-page">
+        <div class="app-page-inner payment-page">
+        <h1 class="welcome-lead" style="font-size:1.35rem;margin-bottom:0.35rem"><i class="fas fa-credit-card" style="color:var(--primary)"></i> Payment methods</h1>
+        <p class="muted">Manage your saved cards for quick checkout.</p>
+
+        <div class="payment-content">
+            <section class="payment-section">
+                <h2>Your cards</h2>
+                <div id="cards-list" class="cards-list">
+                    <div class="loading">Loading...</div>
+                </div>
+                <a href="#" id="add-card-btn" class="add-card-link">
+                    <i class="fas fa-plus"></i> Add a new card
+                </a>
+            </section>
+
+            <section id="add-card-section" class="payment-section add-card-section" style="display:none;">
+                <h2>Add card</h2>
+                <form id="add-card-form" class="add-card-form">
+                    <div class="card-preview" id="card-preview">
+                        <div class="card-preview-inner">
+                            <span class="card-brand" id="preview-brand">VISA</span>
+                            <span class="card-number" id="preview-number">**** **** **** ****</span>
+                            <span class="card-holder" id="preview-holder">Cardholder name</span>
+                            <span class="card-expiry" id="preview-expiry">MM/YY</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Card number</label>
+                        <input type="text" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19" inputmode="numeric" autocomplete="cc-number">
+                    </div>
+                    <div class="form-group">
+                        <label>Cardholder name</label>
+                        <input type="text" id="cardholder" placeholder="EMILY BLACK" autocomplete="cc-name">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Expiry (MM/YY)</label>
+                            <input type="text" id="expiry" placeholder="05/27" maxlength="5" autocomplete="cc-exp">
+                        </div>
+                        <div class="form-group">
+                            <label>CVV</label>
+                            <input type="password" id="cvv" placeholder="***" maxlength="4" inputmode="numeric" autocomplete="cc-csc">
+                        </div>
+                    </div>
+                    <div class="form-group form-check">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="is-default" checked>
+                            Set as default payment method
+                        </label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-outline" id="cancel-add">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save card</button>
+                    </div>
+                </form>
+                <p class="security-note"><i class="fas fa-lock"></i> Your card details are secure. Only the last 4 digits are stored.</p>
+            </section>
+        </div>
+        </div>
+    </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        (function init() {
+            if (!checkAuth()) return;
+
+        const cardsList = document.getElementById('cards-list');
+        const addCardBtn = document.getElementById('add-card-btn');
+        const addCardSection = document.getElementById('add-card-section');
+        const addCardForm = document.getElementById('add-card-form');
+        const cancelAdd = document.getElementById('cancel-add');
+
+        addCardBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            addCardSection.style.display = 'block';
+            addCardForm.reset();
+            updatePreview();
+        });
+
+        cancelAdd.addEventListener('click', () => {
+            addCardSection.style.display = 'none';
+        });
+
+        function formatCardNumber(val) {
+            const v = val.replace(/\D/g, '');
+            const parts = [];
+            for (let i = 0; i < v.length && i < 16; i += 4) {
+                parts.push(v.substr(i, 4));
+            }
+            return parts.join(' ');
+        }
+
+        function detectBrand(num) {
+            const n = num.replace(/\D/g, '');
+            if (n.startsWith('4')) return 'VISA';
+            if (n.startsWith('5') || n.startsWith('2')) return 'Mastercard';
+            if (n.startsWith('3')) return 'AMEX';
+            return 'CARD';
+        }
+
+        function updatePreview() {
+            const num = document.getElementById('card-number').value;
+            const holder = document.getElementById('cardholder').value || 'Cardholder name';
+            const exp = document.getElementById('expiry').value || 'MM/YY';
+            document.getElementById('preview-number').textContent = formatCardNumber(num) || '**** **** **** ****';
+            document.getElementById('preview-holder').textContent = holder.toUpperCase() || 'Cardholder name';
+            document.getElementById('preview-expiry').textContent = exp || 'MM/YY';
+            document.getElementById('preview-brand').textContent = detectBrand(num);
+        }
+
+        document.getElementById('card-number').addEventListener('input', (e) => {
+            e.target.value = formatCardNumber(e.target.value);
+            updatePreview();
+        });
+        document.getElementById('cardholder').addEventListener('input', () => updatePreview());
+        document.getElementById('expiry').addEventListener('input', (e) => {
+            let v = e.target.value.replace(/\D/g, '');
+            if (v.length >= 2) v = v.substr(0, 2) + '/' + v.substr(2);
+            e.target.value = v.substr(0, 5);
+            updatePreview();
+        });
+
+        addCardForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const cardNumber = document.getElementById('card-number').value.replace(/\D/g, '');
+            const expiry = document.getElementById('expiry').value;
+            const cardholder = document.getElementById('cardholder').value.trim();
+            const isDefault = document.getElementById('is-default').checked;
+            if (cardNumber.length < 13) {
+                alert('Please enter a valid card number');
+                return;
+            }
+            if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+                alert('Please enter expiry as MM/YY');
+                return;
+            }
+            try {
+                await api.addPaymentMethod({
+                    card_number: cardNumber,
+                    expiry: expiry,
+                    cardholder_name: cardholder,
+                    is_default: isDefault
+                });
+                addCardSection.style.display = 'none';
+                loadCards();
+            } catch (err) {
+                alert('Error: ' + (err.message || 'Failed to add card'));
+            }
+        });
+
+        async function loadCards() {
+            try {
+                const methods = await api.getPaymentMethods();
+                if (!Array.isArray(methods)) {
+                    throw new Error('Invalid response');
+                }
+                if (methods.length === 0) {
+                    cardsList.innerHTML = '<p class="empty-state">No cards yet. Add one to pay for reservations quickly.</p>';
+                } else {
+                    cardsList.innerHTML = methods.map(m => `
+                        <div class="card-item ${m.is_default ? 'default' : ''}" data-id="${m.id}">
+                            <div class="card-item-inner">
+                                <div class="card-item-header">
+                                    <span class="card-item-brand">${(m.brand || 'card').toUpperCase()}</span>
+                                    ${m.is_default ? '<span class="badge badge-success">Default</span>' : ''}
+                                </div>
+                                <div class="card-item-number">**** **** **** ${m.last4 || '****'}</div>
+                                <div class="card-item-footer">
+                                    <span class="card-item-name">${(m.cardholder_name || '').toUpperCase() || 'Cardholder'}</span>
+                                    <span class="card-item-expiry">${m.expiry_month ? String(m.expiry_month).padStart(2,'0') + '/' + String(m.expiry_year || '').slice(-2) : ''}</span>
+                                </div>
+                            </div>
+                            <div class="card-item-actions">
+                                ${!m.is_default ? `<button class="btn btn-small btn-outline" onclick="setDefault(${m.id})">Set default</button>` : ''}
+                                <button class="btn btn-small btn-outline btn-danger" onclick="deleteCard(${m.id})"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                const status = err.status || (err.data && err.data.detail ? 401 : 0);
+                if (status === 401 || status === 403) {
+                    cardsList.innerHTML = '<div class="error-message">Session expired. <a href="/login.html">Log in again</a>.</div>';
+                } else {
+                    cardsList.innerHTML = '<div class="error-message">Failed to load payment methods. <a href="javascript:loadCards()">Retry</a></div>';
+                }
+            }
+        }
+
+        async function setDefault(id) {
+            try {
+                await api.setDefaultPaymentMethod(id);
+                loadCards();
+            } catch (err) {
+                alert('Error: ' + (err.message || 'Failed to set default'));
+            }
+        }
+
+        async function deleteCard(id) {
+            if (!confirm('Remove this card?')) return;
+            try {
+                await api.deletePaymentMethod(id);
+                loadCards();
+            } catch (err) {
+                alert('Error: ' + (err.message || 'Failed to delete card'));
+            }
+        }
+
+        loadCards();
+        })();
+    </script>
+</body>
+</html>

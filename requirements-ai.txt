@@ -1,0 +1,9 @@
+# AI Module Dependencies (ultralytics 8.4+ for YOLO11)
+ultralytics>=8.4.0
+opencv-python==4.8.1.78
+numpy==1.26.4
+shapely==2.0.2
+requests==2.31.0
+
+# Optional: For better performance
+pillow==10.1.0

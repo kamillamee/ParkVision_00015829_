@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link active"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Checkout</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+    <main class="app-page">
+        <div class="app-page-inner checkout-page">
+        <a href="/my-reservations.html" class="back-link"><i class="fas fa-arrow-left"></i> Back to reservations</a>
+        <h1><i class="fas fa-credit-card"></i> Checkout</h1>
+
+        <div id="checkout-content" class="checkout-content">
+            <div class="loading">Loading...</div>
+        </div>
+        </div>
+    </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script>
+        checkAuth();
+
+        const params = new URLSearchParams(window.location.search);
+        const reservationId = parseInt(params.get('reservation_id') || '0', 10);
+
+        if (!reservationId) {
+            document.getElementById('checkout-content').innerHTML = '<div class="error-message">No reservation specified. <a href="/my-reservations.html">Back</a></div>';
+        } else {
+            loadCheckout();
+        }
+
+        async function loadCheckout() {
+            const container = document.getElementById('checkout-content');
+            try {
+                const [reservations, methods] = await Promise.all([
+                    api.getMyReservations(),
+                    api.getPaymentMethods()
+                ]);
+                const reservation = reservations.find(r => r.id === reservationId);
+                if (!reservation) {
+                    container.innerHTML = '<div class="error-message">Reservation not found. <a href="/my-reservations.html">Back</a></div>';
+                    return;
+                }
+                if (reservation.payment_status === 'paid') {
+                    container.innerHTML = '<div class="success-message">Already paid! <a href="/my-reservations.html">Back</a></div>';
+                    return;
+                }
+
+                const defaultMethod = methods.find(m => m.is_default) || methods[0];
+                container.innerHTML = `
+                    <div class="checkout-card">
+                        <div class="checkout-summary">
+                            <h3>Order summary</h3>
+                            <p><strong>${reservation.slot_number}</strong> — ${reservation.car_plate}</p>
+                            <p>${new Date(reservation.start_time).toLocaleString()} — ${new Date(reservation.end_time).toLocaleString()}</p>
+                        </div>
+                        <div class="checkout-payment">
+                            <h3>Select payment method</h3>
+                            <div class="payment-options" id="payment-options">
+                                ${methods.length === 0 ? '<p class="muted">No cards saved. <a href="/payment-methods.html">Add a card</a> first, or pay without saving.</p>' : ''}
+                                ${methods.map(m => `
+                                    <label class="payment-option ${m.id === defaultMethod?.id ? 'selected' : ''}">
+                                        <input type="radio" name="payment_method" value="${m.id}" ${m.id === defaultMethod?.id ? 'checked' : ''}>
+                                        <div class="payment-option-card">
+                                            <span class="payment-option-brand">${(m.brand || 'CARD').toUpperCase()}</span>
+                                            <span class="payment-option-number">**** ${m.last4}</span>
+                                            ${m.is_default ? '<span class="badge badge-success">Default</span>' : ''}
+                                        </div>
+                                    </label>
+                                `).join('')}
+                            </div>
+                            <a href="/payment-methods.html" class="add-card-link-small"><i class="fas fa-plus"></i> Add new card</a>
+                        </div>
+                        <div class="checkout-total">
+                            <div class="total-row">
+                                <span>Total amount</span>
+                                <strong>$${reservation.amount || 0}</strong>
+                            </div>
+                            <button class="btn btn-primary btn-large btn-block" id="pay-btn">
+                                Pay now
+                            </button>
+                        </div>
+                        <p class="security-note"><i class="fas fa-lock"></i> Secure payment. Your data is protected.</p>
+                    </div>
+                `;
+
+                document.querySelectorAll('.payment-option').forEach(el => {
+                    el.addEventListener('click', () => {
+                        document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
+                        el.classList.add('selected');
+                        el.querySelector('input').checked = true;
+                    });
+                });
+
+                document.getElementById('pay-btn').addEventListener('click', () => payNow(reservationId, methods));
+            } catch (err) {
+                container.innerHTML = '<div class="error-message">Error: ' + (err.message || 'Failed to load') + ' <a href="/my-reservations.html">Back</a></div>';
+            }
+        }
+
+        async function payNow(resId, methods) {
+            const selected = document.querySelector('input[name="payment_method"]:checked');
+            const pmId = selected ? parseInt(selected.value, 10) : null;
+            try {
+                await api.confirmPayment({
+                    reservation_id: resId,
+                    payment_method_id: pmId
+                });
+                document.getElementById('checkout-content').innerHTML = `
+                    <div class="checkout-success">
+                        <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+                        <h2>Payment confirmed</h2>
+                        <p>Thank you! Your reservation is now active.</p>
+                        <a href="/my-reservations.html" class="btn btn-primary">View reservations</a>
+                    </div>
+                `;
+            } catch (err) {
+                alert('Error: ' + (err.message || 'Payment failed'));
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="auth-page">
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <i class="fas fa-parking"></i>
+                <span>Smart Vision</span>
+            </div>
+            <a href="/" class="btn btn-outline">Back to Home</a>
+        </div>
+    </nav>
+
+    <main class="auth-container">
+        <div class="auth-card">
+            <h1><i class="fas fa-user-plus"></i> Register</h1>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="phone"><i class="fas fa-phone"></i> Phone Number</label>
+                    <input type="tel" id="phone" name="phone" required placeholder="+1234567890">
+                </div>
+                <div class="form-group">
+                    <label for="password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="password" name="password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="name"><i class="fas fa-user"></i> Name (Optional)</label>
+                    <input type="text" id="name" name="name" placeholder="Your name">
+                </div>
+                <div class="form-group">
+                    <label for="email"><i class="fas fa-envelope"></i> Email (Optional)</label>
+                    <input type="email" id="email" name="email" placeholder="your@email.com">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+            </form>
+            <p class="auth-link">
+                Already have an account? <a href="/login.html">Login</a>
+            </p>
+            <div id="error-message" class="error-message"></div>
+        </div>
+    </main>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <script>
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = {
+                phone: document.getElementById('phone').value.trim(),
+                password: document.getElementById('password').value,
+                name: document.getElementById('name').value.trim() || null,
+                email: document.getElementById('email').value.trim() || null
+            };
+            const errorDiv = document.getElementById('error-message');
+            const btn = e.target.querySelector('button[type="submit"]');
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+            setButtonLoading(btn, true);
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(formData)
+                });
+                var data = {};
+                try { data = await response.json(); } catch (e) {}
+                if (response.ok) {
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    window.location.href = '/dashboard.html';
+                } else {
+                    errorDiv.textContent = data.detail || data.message || 'Registration failed';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (error) {
+                errorDiv.textContent = error.message || 'Network error. Please check if the server is running.';
+                errorDiv.style.display = 'block';
+            }
+            setButtonLoading(btn, false);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Smart Vision</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+</head>
+<body class="app-shell">
+    <aside class="app-sidebar" aria-label="Main navigation">
+        <div class="app-sidebar-inner">
+            <a href="/dashboard.html" class="app-sidebar-brand">
+                <span class="app-sidebar-brand-icon"><i class="fas fa-parking"></i></span>
+                <span>Smart Vision</span>
+            </a>
+            <nav class="app-sidebar-nav">
+                <a href="/dashboard.html" class="app-sidebar-link active"><i class="fas fa-home"></i><span>Dashboard</span></a>
+                <a href="/map.html" class="app-sidebar-link"><i class="fas fa-map-marker-alt"></i><span>Map</span></a>
+                <a href="/my-cars.html" class="app-sidebar-link"><i class="fas fa-car"></i><span>My Cars</span></a>
+                <a href="/my-reservations.html" class="app-sidebar-link"><i class="fas fa-calendar"></i><span>Reservations</span></a>
+                <a href="/payment-methods.html" class="app-sidebar-link"><i class="fas fa-credit-card"></i><span>Payment</span></a>
+                <a href="/account.html" class="app-sidebar-link"><i class="fas fa-user"></i><span>Account</span></a>
+                <a href="/admin.html" id="nav-admin-item" class="app-sidebar-link" style="display: none;"><i class="fas fa-cog"></i><span>Admin</span></a>
+            </nav>
+            <div class="app-sidebar-footer">
+                <a href="/account.html" class="app-sidebar-cta">
+                    <span class="app-sidebar-cta-title">Profile &amp; settings</span>
+                    <span class="app-sidebar-cta-sub">Manage your account</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+    <div class="shell-backdrop" aria-hidden="true"></div>
+
+    <div class="app-main-wrap">
+        <header class="app-topbar">
+            <div class="app-topbar-left">
+                <button type="button" class="shell-menu-toggle app-icon-btn" aria-label="Open menu"><i class="fas fa-bars"></i></button>
+                <h1 class="app-page-title">Dashboard</h1>
+            </div>
+            <div class="app-topbar-right">
+                <div class="app-user-chip">
+                    <span class="app-user-avatar js-shell-user-initial">U</span>
+                    <span class="app-user-meta">
+                        <span class="app-user-label">Signed in</span>
+                        <span class="js-shell-user-name app-user-name">User</span>
+                    </span>
+                </div>
+                <button type="button" class="btn btn-ghost" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <main class="app-page dashboard">
+            <div class="app-page-inner">
+                <p class="welcome-lead">Welcome, <span id="user-name">User</span>!</p>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <i class="fas fa-parking"></i>
+                        <div class="stat-info">
+                            <h3 id="total-slots">-</h3>
+                            <p>Total Slots</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-check-circle"></i>
+                        <div class="stat-info">
+                            <h3 id="available-slots">-</h3>
+                            <p>Available</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-times-circle"></i>
+                        <div class="stat-info">
+                            <h3 id="occupied-slots">-</h3>
+                            <p>Occupied</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-percent"></i>
+                        <div class="stat-info">
+                            <h3 id="occupancy-rate">-</h3>
+                            <p>Occupancy Rate</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="dashboard-card dashboard-card-map">
+                        <h2><i class="fas fa-map"></i> Live Parking Map</h2>
+                        <div class="parking-map-wrap">
+                            <div id="parking-grid" class="parking-grid" data-lot-id="1">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-card dashboard-card-reserve">
+                        <h2><i class="fas fa-plus-circle"></i> Quick Reserve</h2>
+                        <form id="quick-reserve-form">
+                            <div class="form-group">
+                                <label>Select Car</label>
+                                <select id="reserve-car" required>
+                                    <option value="">Loading cars...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Select Parking Lot</label>
+                                <select id="reserve-lot">
+                                    <option value="">Loading lots...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Select Slot</label>
+                                <select id="reserve-slot" required>
+                                    <option value="">Loading slots...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Start Time <span class="datetime-step-hint"></span></label>
+                                <input type="text" id="start-time" class="reserve-datetime-input" required placeholder="Select date &amp; time" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label>End Time <span class="datetime-step-hint"></span></label>
+                                <input type="text" id="end-time" class="reserve-datetime-input" required placeholder="Select date &amp; time" autocomplete="off">
+                            </div>
+                            <div class="quick-reserve-quick">
+                                <p class="quick-reserve-quick-label">Quick duration from now</p>
+                                <div class="quick-duration-chips" role="group" aria-label="Quick reservation length">
+                                    <button type="button" class="quick-duration-chip" data-minutes="20">20 min</button>
+                                    <button type="button" class="quick-duration-chip" data-minutes="30">30 min</button>
+                                    <button type="button" class="quick-duration-chip" data-minutes="60">1 hour</button>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">Reserve Now</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="dashboard-card">
+                    <h2><i class="fas fa-clock"></i> Recent Reservations</h2>
+                    <div id="recent-reservations">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="reserve-feedback-modal" class="reserve-feedback-modal" aria-hidden="true" role="presentation">
+        <div class="reserve-feedback-modal-backdrop" tabindex="-1" aria-hidden="true"></div>
+        <div class="reserve-feedback-modal-panel" role="alertdialog" aria-modal="true" aria-labelledby="reserve-feedback-modal-title" aria-describedby="reserve-feedback-modal-message">
+            <button type="button" class="reserve-feedback-modal-close" aria-label="Close">&times;</button>
+            <div class="reserve-feedback-modal-header">
+                <div class="reserve-feedback-modal-icon-wrap" id="reserve-feedback-modal-icon" aria-hidden="true"><i class="fas fa-check"></i></div>
+                <h3 id="reserve-feedback-modal-title"></h3>
+                <p class="reserve-feedback-modal-message" id="reserve-feedback-modal-message"></p>
+            </div>
+            <div class="reserve-feedback-modal-footer">
+                <button type="button" class="btn btn-primary" id="reserve-feedback-modal-ok"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/shell.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script>
+        checkAuth();
+        const dashboardParams = new URLSearchParams(window.location.search);
+        const selectedLotId = parseInt(dashboardParams.get('lot_id') || '1', 10) || 1;
+        let activeDashboardLotId = selectedLotId;
+
+        (async function loadUserAndAdminLink() {
+            let user = JSON.parse(localStorage.getItem('user') || '{}');
+            try {
+                const me = await api.getMe();
+                user = me;
+                localStorage.setItem('user', JSON.stringify(me));
+            } catch (e) { /* keep existing user */ }
+            document.getElementById('user-name').textContent = user.name || user.phone || 'User';
+            if (typeof window.refreshShellUser === 'function') window.refreshShellUser();
+            if (user.is_admin) {
+                document.getElementById('nav-admin-item').style.display = '';
+            }
+        })();
+
+        loadDashboardData();
+        var slotStream = connectSlotStream(handleSlotStreamMessage);
+        if (slotStream) {
+            setInterval(function () {
+                refreshParkingStats(activeDashboardLotId);
+            }, 2000);
+        }
+        setInterval(loadDashboardData, slotStream ? 10000 : 5000);
+
+        loadCarsForReserve();
+        loadLotsForReserve();
+
+        var fpReserve = { start: null, end: null };
+
+        function clearQuickDurationChips() {
+            document.querySelectorAll('.quick-duration-chip').forEach(function (b) {
+                b.classList.remove('active');
+            });
+        }
+
+        function reservePickerOptions() {
+            return {
+                enableTime: true,
+                dateFormat: 'Y-m-d H:i',
+                minuteIncrement: 5,
+                time_24hr: true,
+                allowInput: false,
+                disableMobile: true,
+                onChange: function () {
+                    clearQuickDurationChips();
+                }
+            };
+        }
+
+        function initReservePickers() {
+            if (typeof flatpickr === 'undefined') return;
+            fpReserve.start = flatpickr('#start-time', reservePickerOptions());
+            fpReserve.end = flatpickr('#end-time', reservePickerOptions());
+        }
+
+        function roundUpToFiveMinutes(d) {
+            var ms = 5 * 60 * 1000;
+            var t = Math.ceil(d.getTime() / ms) * ms;
+            var r = new Date(t);
+            r.setSeconds(0, 0);
+            return r;
+        }
+
+        function setQuickDurationFromNow(minutes) {
+            if (!fpReserve.start || !fpReserve.end) return;
+            var start = roundUpToFiveMinutes(new Date());
+            var end = new Date(start.getTime() + minutes * 60 * 1000);
+            fpReserve.start.setDate(start, false);
+            fpReserve.end.setDate(end, false);
+            document.querySelectorAll('.quick-duration-chip').forEach(function (btn) {
+                btn.classList.toggle('active', parseInt(btn.getAttribute('data-minutes'), 10) === minutes);
+            });
+        }
+
+        initReservePickers();
+
+        var reserveFeedbackPendingOk = null;
+
+        function closeReserveFeedbackModal() {
+            var m = document.getElementById('reserve-feedback-modal');
+            if (!m) return;
+            m.classList.remove('is-open');
+            m.setAttribute('aria-hidden', 'true');
+        }
+
+        function initReserveFeedbackModal() {
+            var m = document.getElementById('reserve-feedback-modal');
+            if (!m || m.dataset.inited === '1') return;
+            m.dataset.inited = '1';
+            var backdrop = m.querySelector('.reserve-feedback-modal-backdrop');
+            var closeBtn = m.querySelector('.reserve-feedback-modal-close');
+            var okBtn = document.getElementById('reserve-feedback-modal-ok');
+            backdrop.addEventListener('click', function (e) {
+                if (e.target === backdrop) {
+                    closeReserveFeedbackModal();
+                    reserveFeedbackPendingOk = null;
+                }
+            });
+            closeBtn.addEventListener('click', function () {
+                closeReserveFeedbackModal();
+                reserveFeedbackPendingOk = null;
+            });
+            document.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Escape' && m.classList.contains('is-open')) {
+                    closeReserveFeedbackModal();
+                    reserveFeedbackPendingOk = null;
+                }
+            });
+            okBtn.addEventListener('click', function () {
+                var fn = reserveFeedbackPendingOk;
+                closeReserveFeedbackModal();
+                reserveFeedbackPendingOk = null;
+                if (typeof fn === 'function') fn();
+            });
+        }
+
+        function openReserveFeedbackModal(cfg) {
+            initReserveFeedbackModal();
+            var m = document.getElementById('reserve-feedback-modal');
+            if (!m) return;
+            var iconEl = document.getElementById('reserve-feedback-modal-icon');
+            var titleEl = document.getElementById('reserve-feedback-modal-title');
+            var msgEl = document.getElementById('reserve-feedback-modal-message');
+            var okBtn = document.getElementById('reserve-feedback-modal-ok');
+            var variant = cfg.variant === 'error' ? 'error' : 'success';
+            iconEl.className = 'reserve-feedback-modal-icon-wrap is-' + variant;
+            iconEl.innerHTML = variant === 'error'
+                ? '<i class="fas fa-exclamation-circle"></i>'
+                : '<i class="fas fa-check"></i>';
+            titleEl.textContent = cfg.title || '';
+            msgEl.textContent = cfg.message || '';
+            okBtn.textContent = cfg.buttonText || 'OK';
+            reserveFeedbackPendingOk = cfg.onOk || null;
+            m.classList.add('is-open');
+            m.setAttribute('aria-hidden', 'false');
+        }
+
+        document.querySelectorAll('.quick-duration-chip').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                setQuickDurationFromNow(parseInt(btn.getAttribute('data-minutes'), 10));
+            });
+        });
+
+        document.getElementById('quick-reserve-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const carId = parseInt(document.getElementById('reserve-car').value);
+            const slotId = parseInt(document.getElementById('reserve-slot').value);
+            function normalizeReserveDatetime(v) {
+                if (!v) return v;
+                var s = v.trim().replace(/\s+/, 'T');
+                if (s.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+                    s = s + ':00';
+                }
+                return s;
+            }
+            let startTime = normalizeReserveDatetime(document.getElementById('start-time').value);
+            let endTime = normalizeReserveDatetime(document.getElementById('end-time').value);
+
+            if (!carId || !slotId || !startTime || !endTime) {
+                openReserveFeedbackModal({
+                    variant: 'error',
+                    title: 'Missing information',
+                    message: 'Please fill in all fields before reserving.',
+                    buttonText: 'Got it'
+                });
+                return;
+            }
+
+            try {
+                await api.createReservation({
+                    car_id: carId,
+                    slot_id: slotId,
+                    start_time: startTime,
+                    end_time: endTime
+                });
+
+                openReserveFeedbackModal({
+                    variant: 'success',
+                    title: 'Reservation created',
+                    message: 'Your parking spot is reserved. Please confirm payment on the next screen to complete the booking.',
+                    buttonText: 'Go to reservations',
+                    onOk: function () {
+                        window.location.href = '/my-reservations.html';
+                    }
+                });
+            } catch (error) {
+                var errMsg = error.message || error.detail || 'Failed to create reservation';
+                openReserveFeedbackModal({
+                    variant: 'error',
+                    title: 'Could not reserve',
+                    message: typeof errMsg === 'string' ? errMsg : 'Something went wrong. Please try again.',
+                    buttonText: 'OK'
+                });
+            }
+        });
+
+        async function loadDashboardData() {
+            try {
+                const stats = await api.getSlotStats(activeDashboardLotId);
+                document.getElementById('total-slots').textContent = stats.total;
+                document.getElementById('available-slots').textContent = stats.available;
+                document.getElementById('occupied-slots').textContent = stats.occupied;
+                document.getElementById('occupancy-rate').textContent = stats.occupancy_rate + '%';
+
+                loadParkingStatus({ containerId: 'parking-grid', lotId: activeDashboardLotId, updateStats: false });
+                loadRecentReservations();
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                const errorMsg = error.message || 'Error loading data';
+                if (document.getElementById('parking-grid')) {
+                    document.getElementById('parking-grid').innerHTML = `<div class="error-message">${errorMsg}</div>`;
+                }
+            }
+        }
+
+        async function loadRecentReservations() {
+            try {
+                const reservations = await api.getMyReservations();
+                const recent = reservations.slice(0, 5);
+                const container = document.getElementById('recent-reservations');
+
+                if (recent.length === 0) {
+                    container.innerHTML = '<p class="muted" style="margin:0">No reservations yet.</p>';
+                    return;
+                }
+
+                container.innerHTML = recent.map(r => `
+                    <div class="reservation-item">
+                        <div>
+                            <strong>${r.slot_number}</strong> — ${r.car_plate}
+                            <br>
+                            <small class="muted" style="margin:0">${new Date(r.start_time).toLocaleString()} — ${new Date(r.end_time).toLocaleString()}</small>
+                        </div>
+                        <span class="badge badge-${r.status}">${r.status}</span>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading reservations:', error);
+                const container = document.getElementById('recent-reservations');
+                container.innerHTML = '<p>Error loading recent reservations.</p>';
+            }
+        }
+
+        async function loadCarsForReserve() {
+            try {
+                const cars = await api.getMyCars();
+                const select = document.getElementById('reserve-car');
+                select.innerHTML = '<option value="">Select a car</option>' +
+                    cars.map(c => `<option value="${c.id}">${c.plate_number} - ${c.brand || ''} ${c.model || ''}</option>`).join('');
+            } catch (error) {
+                console.error('Error loading cars:', error);
+                const select = document.getElementById('reserve-car');
+                select.innerHTML = '<option value="">Error loading cars</option>';
+            }
+        }
+
+        async function loadLotsForReserve() {
+            try {
+                const lots = await api.getLots();
+                const select = document.getElementById('reserve-lot');
+                // Only show lots that have slots
+                const withSlots = lots.filter(l => l.slots_total > 0);
+                select.innerHTML = '<option value="">Select a lot</option>' +
+                    withSlots.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+                // Pre-select the lot from URL param, or default to first live lot
+                const liveLot = withSlots.find(l => l.id === selectedLotId) || withSlots[0];
+                if (liveLot) {
+                    activeDashboardLotId = liveLot.id;
+                    select.value = String(liveLot.id);
+                    await loadSlotsForReserve(liveLot.id);
+                    await loadDashboardData();
+                }
+                select.addEventListener('change', async function () {
+                    const lotId = parseInt(this.value, 10);
+                    if (lotId) {
+                        activeDashboardLotId = lotId;
+                        await loadSlotsForReserve(lotId);
+                        await loadDashboardData();
+                    } else {
+                        document.getElementById('reserve-slot').innerHTML = '<option value="">Select a slot</option>';
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading lots:', error);
+                document.getElementById('reserve-lot').innerHTML = '<option value="">Error loading lots</option>';
+            }
+        }
+
+        async function loadSlotsForReserve(lotId) {
+            try {
+                const slots = await api.getSlotsStatus(lotId);
+                const select = document.getElementById('reserve-slot');
+                if (!slots || slots.length === 0) {
+                    select.innerHTML = '<option value="">No slots configured</option>';
+                } else {
+                    select.innerHTML = '<option value="">Select a slot</option>' +
+                        slots.map(s =>
+                            `<option value="${s.id}">${s.slot_number}${s.zone ? ' - ' + s.zone : ''} (${s.is_occupied ? 'Occupied now' : 'Available now'})</option>`
+                        ).join('');
+                }
+            } catch (error) {
+                console.error('Error loading slots:', error);
+                const select = document.getElementById('reserve-slot');
+                select.innerHTML = '<option value="">Error loading slots</option>';
+            }
+        }
+    </script>
+</body>
+</html>
