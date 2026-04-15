@@ -3,7 +3,7 @@ import os
 import tempfile
 import cv2
 import numpy as np
-from ultralytics import YOLO
+from ultralytics import YOLO  
 from pathlib import Path
 import requests
 import json
@@ -14,8 +14,8 @@ import torch
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.geometry import box as shapely_box
 from shapely.geometry import Point as ShapelyPoint
-from ultralytics.nn.tasks import DetectionModel
-from ultralytics.nn.modules import Conv, C2f, SPPF, Bottleneck, Detect
+from ultralytics.nn.tasks import DetectionModel 
+from ultralytics.nn.modules import Conv, C2f, SPPF, Bottleneck, Detect 
 from torch.nn.modules.container import Sequential, ModuleList, ModuleDict
 from torch.nn.modules.conv import Conv2d
 from torch.nn.modules.batchnorm import BatchNorm2d
@@ -60,15 +60,15 @@ LATEST_JPEG_BY_LOT = {1: "latest.jpg", 2: "latest-lot-2.jpg"}
 CHECK_INTERVAL_SECONDS = 0.5
 DETECTION_CONFIDENCE = 0.35
 try:
-    DETECTION_IMAGE_SIZE = max(320, int(os.getenv("DETECTION_IMAGE_SIZE", "768")))
+    DETECTION_IMAGE_SIZE = max(320, int(os.getenv("DETECTION_IMAGE_SIZE", "960")))
 except ValueError:
-    DETECTION_IMAGE_SIZE = 768
+    DETECTION_IMAGE_SIZE = 960
 SLOTS_BASE_SIZE = (2560, 1440)
 VEHICLE_CLASS_NAMES = {'car', 'truck', 'bus'}
 OVERLAP_THRESHOLD = 0.18
 LOT_OVERLAP_THRESHOLD = {
     1: 0.18,
-    2: 0.12,
+    2: 0.16,
 }
 STATUS_SWITCH_CONSECUTIVE = 2
 
@@ -194,24 +194,26 @@ def build_shapely_polygons(slots_config: dict) -> dict:
 
 def compute_overlap_ratio(bbox, slot_poly: ShapelyPolygon) -> float:
     x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
-    car_area = max(1.0, (x2 - x1) * (y2 - y1))
     vehicle_box = shapely_box(x1, y1, x2, y2)
     try:
         intersection_area = slot_poly.intersection(vehicle_box).area
-        IoS = intersection_area / slot_poly.area
-        IoC = intersection_area / car_area
-        return max(IoS, IoC * 0.75)
+        if slot_poly.area <= 0:
+            return 0.0
+        ios = intersection_area / slot_poly.area
+        return float(ios)
     except Exception:
         return 0.0
 
 
-def _slot_fallback_match(bbox, slot_poly: ShapelyPolygon, overlap: float) -> bool:
+def _slot_fallback_match(
+    bbox,
+    slot_poly: ShapelyPolygon,
+    overlap: float,
+    min_overlap: float = 0.10,
+) -> bool:
     x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
-    bottom_center = ShapelyPoint((x1 + x2) * 0.5, y2)
-    if slot_poly.contains(bottom_center) and overlap >= 0.03:
-        return True
     center = ShapelyPoint((x1 + x2) * 0.5, (y1 + y2) * 0.5)
-    return slot_poly.contains(center) and overlap >= 0.05
+    return slot_poly.contains(center) and overlap >= min_overlap
 
 
 def assign_vehicles_to_slots(
@@ -220,30 +222,39 @@ def assign_vehicles_to_slots(
     overlap_threshold: float,
 ) -> dict:
     slot_status = {slot_number: False for slot_number in shapely_polygons}
+    used_slots = set()
+
+    detections = sorted(detections, key=lambda d: d.get("confidence", 0.0), reverse=True)
 
     for det in detections:
-        bbox = det['bbox']
+        bbox = det["bbox"]
 
         overlaps = {
             slot_number: compute_overlap_ratio(bbox, poly)
             for slot_number, poly in shapely_polygons.items()
+            if slot_number not in used_slots
         }
+        if not overlaps:
+            continue
 
-        best_slot = max(overlaps, key=overlaps.get) if overlaps else None
-        best_overlap = overlaps[best_slot] if best_slot is not None else 0.0
+        best_slot = max(overlaps, key=overlaps.get)
+        best_overlap = overlaps[best_slot]
+        best_poly = shapely_polygons[best_slot]
 
-        for slot_number, poly in shapely_polygons.items():
-            if slot_status[slot_number]:
-                continue
+        assigned = False
+        if best_overlap >= overlap_threshold:
+            assigned = True
+        else:
+            assigned = _slot_fallback_match(
+                bbox,
+                best_poly,
+                best_overlap,
+                min_overlap=max(0.10, overlap_threshold * 0.6),
+            )
 
-            overlap = overlaps[slot_number]
-
-            if slot_number == best_slot and overlap >= overlap_threshold:
-                slot_status[slot_number] = True
-                continue
-
-            if _slot_fallback_match(bbox, poly, overlap):
-                slot_status[slot_number] = True
+        if assigned:
+            slot_status[best_slot] = True
+            used_slots.add(best_slot)
 
     return slot_status
 
@@ -252,7 +263,12 @@ def is_vehicle_assigned_to_slot(bbox, slot_poly: ShapelyPolygon, overlap_thresho
     overlap = compute_overlap_ratio(bbox, slot_poly)
     if overlap >= overlap_threshold:
         return True
-    return _slot_fallback_match(bbox, slot_poly, overlap)
+    return _slot_fallback_match(
+        bbox,
+        slot_poly,
+        overlap,
+        min_overlap=max(0.10, overlap_threshold * 0.6),
+    )
 
 def _detection_debug_enabled() -> bool:
     return os.getenv("PARKING_VISION_DEBUG_DETECTION", os.getenv("AI_DETECTION_DEBUG", "")).lower() in (
@@ -312,7 +328,16 @@ def _debug_yolo_detections(
             bb = det['bbox']
             cf = det['confidence']
             cname = det['class']
-            triggered = best_score >= overlap_threshold
+            triggered = False
+            if best_slot is not None:
+                triggered = best_score >= overlap_threshold
+                if not triggered and shapely_polygons:
+                    triggered = _slot_fallback_match(
+                        det['bbox'],
+                        shapely_polygons[best_slot],
+                        best_score,
+                        min_overlap=max(0.10, overlap_threshold * 0.6),
+                    )
             all_str = " ".join(f"{sn}={v:.2f}" for sn, v in overlaps.items())
             print(
                 f"  [car {i}] {cname} conf={cf:.3f} "
@@ -361,7 +386,16 @@ def _debug_yolo_detections(
             bx1, by1, bx2, by2 = int(bb[0]), int(bb[1]), int(bb[2]), int(bb[3])
             cf = det['confidence']
             cname = det['class']
-            triggered = best_score >= overlap_threshold
+            triggered = False
+            if best_slot is not None:
+                triggered = best_score >= overlap_threshold
+                if not triggered and shapely_polygons:
+                    triggered = _slot_fallback_match(
+                        det['bbox'],
+                        shapely_polygons[best_slot],
+                        best_score,
+                        min_overlap=max(0.10, overlap_threshold * 0.6),
+                    )
             box_col = (0, 255, 80) if triggered else (0, 165, 255)
 
             cv2.rectangle(vis, (bx1, by1), (bx2, by2), box_col, 2)
@@ -518,7 +552,7 @@ class SlotStatusSmoother:
     def __init__(self, consecutive_required: int = STATUS_SWITCH_CONSECUTIVE,
                  acquire_consecutive: int = None, release_consecutive: int = None):
         self.acquire_consecutive = max(1, int(acquire_consecutive if acquire_consecutive is not None else consecutive_required))
-        self.release_consecutive = max(1, int(release_consecutive if release_consecutive is not None else consecutive_required * 4))
+        self.release_consecutive = max(1, int(release_consecutive if release_consecutive is not None else consecutive_required * 2))
         self.stable_status = {}
         self.pending_status = {}
         self.pending_count = {}
