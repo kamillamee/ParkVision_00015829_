@@ -4,7 +4,7 @@ An AI-powered parking management platform that uses computer vision to detect re
 
 - What It Is
 
-Smart Vision combines a **YOLO-based AI module** that analyzes live video feeds with a **FastAPI backend** and a **responsive web interface**. Users can see which spots are free, book a space in advance, and manage their vehicles — all in one place.
+Smart Vision combines a **YOLO-based AI module** that analyzes live video feeds with a **FastAPI backend** and a **responsive web interface**. Occupancy is determined purely by computer vision (polygon IoU against YOLO vehicle detections) — no physical sensors are required. Users can see which spots are free, book a space in advance, and manage their vehicles — all in one place.
 
 - How It Works
 
@@ -30,11 +30,12 @@ Smart Vision combines a **YOLO-based AI module** that analyzes live video feeds 
 
   AI / Detection
 - YOLOv11m vehicle detection on video frames
-- Polygon-based slot occupancy using Shapely geometry
-- Temporal smoothing to prevent status flickering
+- Polygon-based slot occupancy using Shapely (area-overlap ratio + best-slot assignment per car)
+- Optional Region-of-Interest mask and minimum bbox area filter to reject background cars
+- Optional ByteTrack tracking (`--use-track`) for stable per-car identities
+- Temporal smoothing with configurable acquire / release thresholds
 - Supports multiple parking lots simultaneously
-- Exports latest frames as JPEG for live display in the browser
-- Per-lot configurable overlap thresholds
+- Streams frames over MJPEG for live display in the browser
 
   Admin
 - Dashboard statistics (users, reservations, slots)
@@ -113,12 +114,12 @@ SmartVision/
 │           └── slot_editor.js
 │
 ├── config/
-│   ├── slots.json          # Slot polygons for lot 1 (British School)
-│   └── slots-west.json     # Slot polygons for lot 2 (Westminster)
+│   ├── bmu.json            # Slot polygons for lot 1 (British School)
+│   └── west.json           # Slot polygons for lot 2 (Westminster)
 │
 ├── video/
-│   ├── Parking.mp4         # Video feed for lot 1
-│   ├── Parking-west.mp4    # Video feed for lot 2
+│   ├── bmu.mp4             # Video feed for lot 1
+│   ├── west.mp4            # Video feed for lot 2
 │   ├── latest.jpg          # Latest frame lot 1 (auto-updated by AI)
 │   └── latest-lot-2.jpg    # Latest frame lot 2
 │
@@ -160,10 +161,10 @@ python run.py
 - API docs: `http://localhost:8000/docs`
 
 The database, tables, and seed data are initialized automatically on first run.
+Vision workers are started **inside** the FastAPI process for every `is_live` lot, so you
+don't need to run a second process unless you want a standalone debug window.
 
-  3. Run the AI module (optional — enables live occupancy)
-
-In a separate terminal:
+  3. Run the AI module in a separate process (optional)
 
  bash
 pip install -r requirements-ai.txt
@@ -176,6 +177,8 @@ python ai_module/inference.py --lot-id 2
  
 
 The YOLO11m model downloads automatically on first run. Both lot instances can run simultaneously.
+If you do this, set `PARKING_VISION_ENABLED=false` to avoid running two detectors against the
+same lot.
 
 -
 
@@ -204,7 +207,9 @@ Password: admin123
 
   GET   `/api/slots/status`   All slots (filter by `lot_id`)  
   GET   `/api/slots/stats`   Occupancy statistics  
-  POST   `/api/slots/update-status`   AI module update (requires `X-API-Key`)  
+  GET   `/api/slots/config`   Polygon config for a lot (filter by `lot_id`)  
+  GET   `/api/slots/stream`   Server-Sent Events feed of slot updates  
+  POST   `/api/slots/update-status`   AI module update (requires `X-API-Key`, body may include `lot_id` per row)  
 
   Reservations
   Method   Path   Description  
@@ -269,7 +274,7 @@ The `AI_API_KEY` must match between the backend and the AI module — the AI mod
 
   Slot polygon configuration
 
-Edit `config/slots.json` (lot 1) or `config/slots-west.json` (lot 2) to define slot boundaries:
+Edit `config/bmu.json` (lot 1) or `config/west.json` (lot 2) to define slot boundaries:
 
  json
 {
@@ -283,14 +288,14 @@ Use the built-in **Slot Editor** (`/slots-editor.html`) to draw and adjust polyg
 
 - Pre-seeded Parking Lots
 
-  1   British School of Tashkent   A1–A5 (5 slots)   `Parking.mp4`  
-  2   Westminster International University   W1–W6 (6 slots)   `Parking-west.mp4`  
+  1   British School of Tashkent   A1–A5 (5 slots)   `bmu.mp4`  
+  2   Westminster International University   W1–W5 (5 slots)   `west.mp4`  
 
 
 
 - Additional Resources
 
 - `docs/` — setup guides, notification config, roadmap
-- `tools/` — diagnostic scripts (`check_setup.py`, `check_database.py`, `sensor_emulator.py`)
+- `tools/` — diagnostic scripts (`check_setup.py`, `check_database.py`, `check_slots.py`)
 - `http://localhost:8000/docs` — interactive Swagger API documentation
 
