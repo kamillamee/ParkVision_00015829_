@@ -1,6 +1,6 @@
-"""MJPEG live stream + frame metadata for parking map overlays."""
+"""MJPEG live stream + single-frame fallback for parking map overlays."""
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from fastapi.responses import StreamingResponse
 
 from backend.parking_vision import get_pipeline
@@ -41,6 +41,27 @@ async def mjpeg_stream(lot_id: int):
             "Pragma": "no-cache",
             "Connection": "keep-alive",
         },
+    )
+
+
+@router.get("/frame/{lot_id}")
+async def single_frame(lot_id: int):
+    """Latest JPEG for this lot (single frame, for browsers/panels that
+    don't handle multipart MJPEG well).  Clients should add `?t=…` to
+    bust the cache."""
+    pipe = get_pipeline(lot_id)
+    if pipe is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Live stream not available for this lot.",
+        )
+    jpeg = pipe.get_latest_jpeg()
+    if not jpeg:
+        raise HTTPException(status_code=503, detail="No frame available yet")
+    return Response(
+        content=jpeg,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
 
 

@@ -104,7 +104,7 @@
                 <section class="dashboard-card lot-slots-board">
                     <div class="lot-slots-board-head">
                         <h2><i class="fas fa-th-large"></i> Slot status</h2>
-                        <p class="muted">Real-time occupancy (vision / sensors). Updates every few seconds.</p>
+                        <p class="muted">Real-time YOLO occupancy. Updates every few seconds.</p>
                     </div>
                     <div class="lot-slots-board-body">
                         <div id="parking-grid" class="parking-grid lot-slots-grid" data-lot-id="">
@@ -210,14 +210,12 @@
                     return;
                 }
 
-                const sourceLabel = (src) => (src === 'sensor' ? 'Sensor' : src === 'fused' ? 'Fused' : 'Vision');
                 container.classList.remove('parking-map');
                 container.innerHTML = slots.map(slot => `
                     <div class="slot-card ${slot.is_occupied ? 'occupied' : 'available'}" title="${slot.slot_number} - ${slot.zone || ''}">
                         <div class="slot-number">${slot.slot_number}</div>
                         <div class="slot-status">${slot.is_occupied ? 'Occupied' : 'Available'}</div>
                         ${slot.zone ? '<div class="slot-zone">Zone ' + slot.zone + '</div>' : ''}
-                        ${slot.occupation_source ? '<span class="slot-source lot-source-pill">' + sourceLabel(slot.occupation_source) + '</span>' : ''}
                     </div>
                 `).join('');
             } catch (e) {

@@ -58,12 +58,15 @@ class SlotStatus(BaseModel):
     zone: Optional[str]
     is_occupied: bool
     last_updated: str
-    occupation_source: Optional[str] = None
     lot_id: Optional[int] = None
 
 class SlotUpdate(BaseModel):
     slot_number: str
     is_occupied: bool
+    # Optional scoping so the AI module can target a specific lot.
+    # When omitted, the backend updates all parking_slots rows with this slot_number
+    # (legacy behavior, kept for backwards compatibility).
+    lot_id: Optional[int] = Field(None, gt=0)
 
 class ParkingLotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -76,14 +79,6 @@ class ParkingLotResponse(BaseModel):
     slots_total: int = 0
     slots_available: int = 0
     is_live: bool = False
-
-class SensorReadingItem(BaseModel):
-    slot_number: str = Field(..., min_length=1, max_length=20)
-    source: str = Field(..., description="e.g. ultrasonic, ir, magnetic")
-    is_occupied: bool
-
-class SensorReadingsBatch(BaseModel):
-    readings: List[SensorReadingItem] = Field(..., min_length=1, max_length=500)
 
 class SlotStats(BaseModel):
     total: int

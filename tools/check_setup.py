@@ -59,13 +59,13 @@ else:
 
 # Check config files
 print("\n⚙️  Checking configuration...")
-slots_config = base_dir / "config" / "slots.json"
+slots_config = base_dir / "config" / "bmu.json"
 if slots_config.exists():
-    print(f"✓ slots.json exists")
+    print(f"✓ bmu.json exists")
 else:
-    print(f"⚠️  slots.json not found")
+    print(f"⚠️  bmu.json not found")
 
-video_path = base_dir / "video" / "Parking.mp4"
+video_path = base_dir / "video" / "bmu.mp4"
 if video_path.exists():
     print(f"✓ Video file exists")
 else:

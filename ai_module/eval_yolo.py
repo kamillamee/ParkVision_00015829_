@@ -1,4 +1,4 @@
-"""Run YOLO on each video frame and display detections."""
+"""Run YOLO on each video frame and display detections (debug tool)."""
 import argparse
 from pathlib import Path
 
@@ -14,18 +14,7 @@ from torch.nn.modules.activation import SiLU
 from torch.nn.modules.pooling import MaxPool2d
 from torch.nn.modules.upsampling import Upsample
 
-try:
-    torch.serialization.set_default_load_weights_only(False)
-except AttributeError:
-    pass
-
-_torch_load = torch.load
-def _unsafe_torch_load(*args, **kwargs):
-    kwargs["weights_only"] = False
-    return _torch_load(*args, **kwargs)
-torch.load = _unsafe_torch_load
-
-torch.serialization.add_safe_globals([
+_YOLO_SAFE_GLOBALS = [
     DetectionModel,
     Conv,
     C2f,
@@ -40,18 +29,24 @@ torch.serialization.add_safe_globals([
     SiLU,
     MaxPool2d,
     Upsample,
-])
+]
+try:
+    torch.serialization.add_safe_globals(_YOLO_SAFE_GLOBALS)
+except Exception:
+    pass
 
-VIDEO_PATH = Path(__file__).parent.parent / "video" / "Parking.mp4"
+VIDEO_PATH = Path(__file__).parent.parent / "video" / "bmu.mp4"
 MODEL_PATH = Path(__file__).parent.parent / "models" / "yolo11m.pt"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="YOLO video evaluation viewer")
     parser.add_argument("--video", default=str(VIDEO_PATH), help="Path to video file")
     parser.add_argument("--model", default=str(MODEL_PATH), help="Path to YOLO weights")
-    parser.add_argument("--conf", type=float, default=0.15, help="YOLO confidence threshold")
-    parser.add_argument("--imgsz", type=int, default=640, help="YOLO inference image size")
+    parser.add_argument("--conf", type=float, default=0.25, help="YOLO confidence threshold")
+    parser.add_argument("--imgsz", type=int, default=960, help="YOLO inference image size")
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -66,22 +61,7 @@ def main():
     if not model_path.exists():
         print(f"Model not found at {model_path}, using YOLO11m (will download if needed)")
     print(f"Loading model: {model_weights}")
-    with torch.serialization.safe_globals([
-        DetectionModel,
-        Conv,
-        C2f,
-        SPPF,
-        Bottleneck,
-        Detect,
-        Sequential,
-        ModuleList,
-        ModuleDict,
-        Conv2d,
-        BatchNorm2d,
-        SiLU,
-        MaxPool2d,
-        Upsample,
-    ]):
+    with torch.serialization.safe_globals(_YOLO_SAFE_GLOBALS):
         model = YOLO(model_weights)
 
     cap = cv2.VideoCapture(str(video_path))
@@ -100,13 +80,13 @@ def main():
         annotated_frame = results[0].plot()
         cv2.imshow("YOLO Detections", annotated_frame)
 
-
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):
             break
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()

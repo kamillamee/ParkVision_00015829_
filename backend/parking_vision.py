@@ -1,16 +1,25 @@
+"""Embedded YOLO vision workers for every ``is_live`` parking lot.
+
+One worker per lot runs a capture thread (grabs frames + encodes JPEG for
+MJPEG streaming) plus a detection thread (runs YOLO + overlap-ratio slot
+assignment). The YOLO model is shared across workers to save memory, so a
+single process-wide lock serializes inference (Ultralytics is not
+thread-safe).
+"""
 from __future__ import annotations
 
+import logging
 import os
 import sys
+import sqlite3
 import threading
 import time
-import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-import requests
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
@@ -23,8 +32,6 @@ from backend.config import (
     SLOTS_CONFIG,
     SLOTS_CONFIG_WEST,
     MODEL_PATH,
-    AI_API_KEY,
-    PORT,
     PARKING_VISION_ENABLED,
     PARKING_VISION_DETECT_FPS,
     PARKING_VISION_FRAME_SKIP,
@@ -32,40 +39,52 @@ from backend.config import (
     PARKING_VISION_STREAM_QUALITY,
     PARKING_VISION_USE_TRACK,
     PARKING_VISION_CONF,
-    PARKING_VISION_DISABLE_ROI,
-    PARKING_VISION_INFER_W,
-    PARKING_VISION_INFER_H,
 )
 from ai_module.inference import (
     load_slots_config,
-    reconcile_slot_names_with_backend,
-    infer_config_base_size,
-    scale_slots_config,
-    build_shapely_polygons,
-    roi_bbox_from_slots,
+    load_roi_polygon,
     detect_parking_occupancy,
     SlotStatusSmoother,
     load_smart_parking_model,
-    LOT_OVERLAP_THRESHOLD,
-    OVERLAP_THRESHOLD,
     DETECTION_CONFIDENCE,
     DETECTION_IMAGE_SIZE,
-    STATUS_SWITCH_CONSECUTIVE,
+    DEFAULT_OCCUPANCY_MODE,
+    DEFAULT_OVERLAP_THRESHOLD,
+    DEFAULT_MIN_BBOX_AREA_FRAC,
+    OCCUPANCY_MODE_OVERLAP,
+    OCCUPANCY_MODE_POINT,
+    STATUS_ACQUIRE_CONSECUTIVE,
+    STATUS_RELEASE_CONSECUTIVE,
+    _safe_polygon,
 )
 
 VISION_DEVICE = os.getenv("PARKING_VISION_DEVICE", "cpu")
+_mode_env = os.getenv("PARKING_VISION_OCCUPANCY_MODE", DEFAULT_OCCUPANCY_MODE).strip().lower()
+if _mode_env not in (OCCUPANCY_MODE_POINT, OCCUPANCY_MODE_OVERLAP):
+    _mode_env = DEFAULT_OCCUPANCY_MODE
+PARKING_VISION_OCCUPANCY_MODE = _mode_env
+try:
+    PARKING_VISION_OVERLAP_THRESHOLD = float(
+        os.getenv("PARKING_VISION_OVERLAP_THRESHOLD", str(DEFAULT_OVERLAP_THRESHOLD))
+    )
+except ValueError:
+    PARKING_VISION_OVERLAP_THRESHOLD = DEFAULT_OVERLAP_THRESHOLD
+try:
+    PARKING_VISION_MIN_BBOX_AREA_FRAC = float(
+        os.getenv("PARKING_VISION_MIN_BBOX_AREA_FRAC", str(DEFAULT_MIN_BBOX_AREA_FRAC))
+    )
+except ValueError:
+    PARKING_VISION_MIN_BBOX_AREA_FRAC = DEFAULT_MIN_BBOX_AREA_FRAC
+
+logger = logging.getLogger("parkvision.vision")
 
 _pipelines: Dict[int, "LotVisionPipeline"] = {}
 _pipelines_lock = threading.Lock()
 _model = None
 _model_lock = threading.Lock()
-
-
-def _overlap_for_lot_name(name: str) -> float:
-    n = (name or "").lower()
-    if "westminster" in n:
-        return LOT_OVERLAP_THRESHOLD.get(2, OVERLAP_THRESHOLD)
-    return LOT_OVERLAP_THRESHOLD.get(1, OVERLAP_THRESHOLD)
+# Serializes Ultralytics inference calls across all pipelines; Ultralytics
+# is not documented as thread-safe when the model is shared.
+_model_inference_lock = threading.Lock()
 
 
 def _resolve_video_slots_for_lot(name: str) -> Tuple[Path, Path]:
@@ -96,12 +115,62 @@ def discover_live_lots() -> List[Tuple[int, str]]:
     return [(int(r[0]), str(r[1])) for r in rows]
 
 
+def _db_slot_names_for_lot(lot_id: int) -> List[str]:
+    """Read slot_number values straight from SQLite — avoids a circular HTTP
+    call from the vision worker back to its own FastAPI process."""
+    try:
+        conn = sqlite3.connect(str(DATABASE_PATH))
+        try:
+            rows = conn.execute(
+                "SELECT slot_number FROM parking_slots WHERE lot_id = ? ORDER BY slot_number",
+                (lot_id,),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [str(r[0]) for r in rows if r and r[0] is not None]
+    except Exception:
+        return []
+
+
 def get_model():
     global _model
     with _model_lock:
         if _model is None:
             _model = load_smart_parking_model(MODEL_PATH)
         return _model
+
+
+def _update_slots_in_db(lot_id: int, status: Dict[str, bool]) -> None:
+    """Write occupancy updates directly to SQLite (no HTTP round-trip).
+
+    Each update is scoped by ``(lot_id, slot_number)`` so two lots that
+    happen to share a slot name will never cross-update each other.
+    """
+    if not status:
+        return
+    ts = datetime.now(timezone.utc).isoformat()
+    try:
+        conn = sqlite3.connect(str(DATABASE_PATH))
+        try:
+            conn.executemany(
+                "UPDATE parking_slots SET is_occupied = ?, last_updated = ? "
+                "WHERE slot_number = ? AND lot_id = ?",
+                [
+                    (1 if occ else 0, ts, slot, lot_id)
+                    for slot, occ in status.items()
+                ],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("lot %s: failed to write slot updates to DB: %s", lot_id, e)
+        return
+    try:
+        from backend.slot_notify import notify_slot_changed
+        notify_slot_changed()
+    except Exception:
+        pass
 
 
 class LotVisionPipeline:
@@ -118,13 +187,22 @@ class LotVisionPipeline:
         self._cap_thread: Optional[threading.Thread] = None
         self._det_thread: Optional[threading.Thread] = None
 
-        self._slots_config: dict = {}
-        self._shapely_polygons: dict = {}
-        self._roi_xyxy: Optional[Tuple[int, int, int, int]] = None
-        self._infer_resize = None
-        self._overlap = _overlap_for_lot_name(lot_name)
-        self._smoother = SlotStatusSmoother(consecutive_required=STATUS_SWITCH_CONSECUTIVE)
+        self._spots: Dict[str, np.ndarray] = {}
+        self._slot_polys: Dict[str, object] = {}
+        self._roi_polygon: Optional[np.ndarray] = None
+        self._smoother = SlotStatusSmoother(
+            acquire_consecutive=STATUS_ACQUIRE_CONSECUTIVE,
+            release_consecutive=STATUS_RELEASE_CONSECUTIVE,
+        )
         self._last_backend: Optional[dict] = None
+        # Bumped every time the source video loops back to frame 0. Detection
+        # results from a stale epoch are discarded so the post-loop smoother
+        # never sees a pre-loop reading.
+        self._loop_seq = 0
+        self._force_submit_next = False
+        self._debug_loop = os.getenv("PARKVISION_DEBUG_LOOP", "").lower() in (
+            "1", "true", "yes", "on"
+        )
 
         self._det_frame_lock = threading.Lock()
         self._det_pending: Optional[np.ndarray] = None
@@ -148,50 +226,52 @@ class LotVisionPipeline:
             return self._jpeg
 
     def _setup(self, frame_w: int, frame_h: int):
-        slots = load_slots_config(self.slots_json)
-        backend_base = f"http://127.0.0.1:{PORT}"
-        slots = reconcile_slot_names_with_backend(slots, backend_base, self.lot_id)
-        inferred_base = infer_config_base_size(slots)
-        scaled = scale_slots_config(slots, (frame_w, frame_h), base_size=inferred_base)
-        self._slots_config = scaled
-        self._shapely_polygons = build_shapely_polygons(scaled)
-        self._roi_xyxy = roi_bbox_from_slots(scaled, frame_w, frame_h)
-        if PARKING_VISION_DISABLE_ROI:
-            self._roi_xyxy = None
-            print(f"PARKING_VISION lot={self.lot_id}: PARKING_VISION_DISABLE_ROI=1 — full-frame inference")
-        if self._roi_xyxy is not None and PARKING_VISION_INFER_W > 0 and PARKING_VISION_INFER_H > 0:
-            self._infer_resize = (PARKING_VISION_INFER_W, PARKING_VISION_INFER_H)
-        else:
-            self._infer_resize = None
+        spots = load_slots_config(self.slots_json)
+        # Warn (don't remap) if DB slot names don't match config keys.
+        db_names = set(_db_slot_names_for_lot(self.lot_id))
+        cfg_names = set(spots.keys())
+        missing_in_cfg = sorted(db_names - cfg_names)
+        missing_in_db = sorted(cfg_names - db_names)
+        if db_names and (missing_in_cfg or missing_in_db):
+            logger.warning(
+                "lot %s: slot name mismatch between DB and %s. "
+                "DB has no polygon for: %s. Config has no DB row for: %s. "
+                "Fix the JSON keys or re-seed the DB.",
+                self.lot_id,
+                self.slots_json.name,
+                missing_in_cfg,
+                missing_in_db,
+            )
+
+        self._spots = spots
+        self._slot_polys = {}
+        for name, pts in spots.items():
+            poly = _safe_polygon(pts)
+            if poly is not None:
+                self._slot_polys[name] = poly
+
+        self._roi_polygon = load_roi_polygon(self.slots_json)
         self._det_conf = float(PARKING_VISION_CONF) if PARKING_VISION_CONF else DETECTION_CONFIDENCE
         print(
             f"PARKING_VISION lot={self.lot_id} ({self.lot_name}) "
             f"video={self.video_path.name} frame={frame_w}x{frame_h} "
-            f"config_base={inferred_base[0]}x{inferred_base[1]} "
-            f"roi={self._roi_xyxy} infer={self._infer_resize} "
-            f"det_conf={self._det_conf} frame_skip={PARKING_VISION_FRAME_SKIP} detect_fps={PARKING_VISION_DETECT_FPS}"
+            f"slots={len(spots)} roi={'yes' if self._roi_polygon is not None else 'no'} "
+            f"det_conf={self._det_conf} overlap>={PARKING_VISION_OVERLAP_THRESHOLD:.2f} "
+            f"frame_skip={PARKING_VISION_FRAME_SKIP} detect_fps={PARKING_VISION_DETECT_FPS}"
         )
-        if scaled:
-            first_slot = next(iter(scaled))
+        if spots:
+            first = next(iter(spots))
             print(
                 f"PARKING_VISION lot={self.lot_id} alignment check — "
-                f"slot {first_slot!r} scaled poly: {scaled[first_slot]} "
-                f"(verify these pixels match the parking space in the video)"
+                f"slot {first!r} polygon: {spots[first].tolist()} "
+                f"(verify these pixels match the bay in the {frame_w}x{frame_h} video)"
             )
 
     def _push_slots(self, status: dict, frame_index: int):
         if status == self._last_backend:
             return
         self._last_backend = dict(status)
-        updates = [{"slot_number": k, "is_occupied": bool(v)} for k, v in status.items()]
-        url = f"http://127.0.0.1:{PORT}/api/slots/update-status"
-        headers = {"Content-Type": "application/json"}
-        if AI_API_KEY:
-            headers["X-API-Key"] = AI_API_KEY
-        try:
-            requests.post(url, json=updates, headers=headers, timeout=5.0)
-        except Exception:
-            pass
+        _update_slots_in_db(self.lot_id, status)
 
     def _run_capture(self):
         cap = cv2.VideoCapture(str(self.video_path))
@@ -202,7 +282,12 @@ class LotVisionPipeline:
         fw = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         fh = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width, self.height = fw, fh
-        self._setup(fw, fh)
+        try:
+            self._setup(fw, fh)
+        except Exception as e:
+            print(f"PARKING_VISION lot={self.lot_id}: setup failed: {e}")
+            cap.release()
+            return
 
         display_fps = min(PARKING_VISION_DISPLAY_FPS, max(1.0, fps))
         frame_delay = 1.0 / display_fps
@@ -215,6 +300,20 @@ class LotVisionPipeline:
             if not ret:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 frame_index = 0
+                # Demo videos loop. Bump epoch BEFORE clearing pending —
+                # any detection thread mid-inference will see the new seq
+                # when it returns and drop its stale result.
+                self._loop_seq += 1
+                self._smoother.reset()
+                self._last_backend = None
+                with self._det_frame_lock:
+                    self._det_pending = None
+                self._force_submit_next = True
+                if self._debug_loop:
+                    print(
+                        f"[LOOP] lot={self.lot_id} video looped seq={self._loop_seq}"
+                        f" — smoother+dedup+pending cleared"
+                    )
                 time.sleep(0.05)
                 continue
 
@@ -224,9 +323,19 @@ class LotVisionPipeline:
                     self._jpeg = buf.tobytes()
 
             frame_index += 1
-            if frame_index % max(1, PARKING_VISION_FRAME_SKIP) == 0:
+            should_submit = (
+                self._force_submit_next
+                or frame_index % max(1, PARKING_VISION_FRAME_SKIP) == 0
+            )
+            if should_submit:
                 with self._det_frame_lock:
                     self._det_pending = frame.copy()
+                if self._force_submit_next and self._debug_loop:
+                    print(
+                        f"[LOOP] lot={self.lot_id} force-submitting first post-loop frame"
+                        f" (seq={self._loop_seq})"
+                    )
+                self._force_submit_next = False
 
             next_wall += frame_delay
             sleep_for = next_wall - time.time()
@@ -257,24 +366,42 @@ class LotVisionPipeline:
                 continue
             next_detect = now + detect_interval
             frame_i += 1
+            seq_at_pickup = self._loop_seq
 
             try:
                 raw, _ = detect_parking_occupancy(
-                    frame,
-                    model,
-                    self._slots_config,
-                    self._shapely_polygons,
-                    det_conf,
-                    DETECTION_IMAGE_SIZE,
-                    VISION_DEVICE,
-                    self._overlap,
-                    roi_xyxy=self._roi_xyxy,
-                    infer_resize=self._infer_resize,
+                    frame, model, self._spots,
+                    det_conf, DETECTION_IMAGE_SIZE, VISION_DEVICE,
                     use_track=PARKING_VISION_USE_TRACK,
                     debug_context=f"lot_id={self.lot_id} name={self.lot_name!r}",
                     debug_lot_id=self.lot_id,
+                    occupancy_mode=PARKING_VISION_OCCUPANCY_MODE,
+                    overlap_threshold=PARKING_VISION_OVERLAP_THRESHOLD,
+                    min_bbox_area_frac=PARKING_VISION_MIN_BBOX_AREA_FRAC,
+                    roi_polygon=self._roi_polygon,
+                    slot_polys=self._slot_polys,
+                    model_lock=_model_inference_lock,
                 )
+                # Discard a result computed from a pre-loop frame — applying
+                # it would re-seed the freshly-reset smoother with stale
+                # data, which is exactly the bug we were chasing.
+                if self._loop_seq != seq_at_pickup:
+                    if self._debug_loop:
+                        print(
+                            f"[LOOP] lot={self.lot_id} dropped stale inference"
+                            f" (pickup_seq={seq_at_pickup} now_seq={self._loop_seq})"
+                        )
+                    continue
                 smoothed = self._smoother.update(raw)
+                if self._debug_loop:
+                    raw_occ = sum(1 for v in raw.values() if v)
+                    sm_occ = sum(1 for v in smoothed.values() if v)
+                    changed = smoothed != self._last_backend
+                    print(
+                        f"[LOOP] lot={self.lot_id} seq={self._loop_seq}"
+                        f" raw_occ={raw_occ}/{len(raw)} smoothed_occ={sm_occ}/{len(smoothed)}"
+                        f" push={changed}"
+                    )
                 self._push_slots(smoothed, frame_i)
             except Exception as e:
                 print(f"PARKING_VISION detect error lot={self.lot_id}: {e}")

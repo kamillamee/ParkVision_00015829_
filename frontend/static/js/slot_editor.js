@@ -131,7 +131,7 @@ downloadJsonBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = lotId === 2 ? 'slots-west.json' : 'slots.json';
+    a.download = lotId === 2 ? 'west.json' : 'bmu.json';
     a.click();
     URL.revokeObjectURL(url);
 });

@@ -78,6 +78,8 @@ async function getFrameDimensions(lotId) {
             }
         }
     } catch (_) {}
+    // Fall back to the single-frame JPEG endpoint (not the multipart MJPEG,
+    // whose <img> onload fires mid-stream and can confuse naturalWidth).
     return new Promise(function (resolve) {
         var img = new Image();
         img.onload = function () {
@@ -89,7 +91,7 @@ async function getFrameDimensions(lotId) {
         img.onerror = function () {
             resolve({ width: PARKING_MAP_SIZE.width, height: PARKING_MAP_SIZE.height });
         };
-        img.src = mediaUrlForLot(lotId) + '?t=' + Date.now();
+        img.src = '/api/stream/frame/' + lotId + '?t=' + Date.now();
     });
 }
 
@@ -194,17 +196,6 @@ function attachLiveFrameFallback(containerId, hint) {
     );
 }
 
-function getPolygonBounds(points) {
-    const xs = points.map(p => p[0]);
-    const ys = points.map(p => p[1]);
-    return {
-        minX: Math.min(...xs),
-        maxX: Math.max(...xs),
-        minY: Math.min(...ys),
-        maxY: Math.max(...ys)
-    };
-}
-
 function polygonCentroid(points) {
     let sx = 0;
     let sy = 0;
@@ -235,121 +226,28 @@ function escapeHtmlAttr(s) {
         .replace(/"/g, '&quot;');
 }
 
-function occupationSourceLabel(src) {
-    if (src === 'sensor') return 'Sensor';
-    if (src === 'fused') return 'Fused';
-    return 'Vision';
-}
-
-/** Transparent 1×1 GIF — placeholder so the second buffer img has a valid src before the first swap. */
-const LIVE_FRAME_PLACEHOLDER =
-    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-
-const LIVE_FRAME_MS = 125; // ~8 FPS for smoother live view without overloading browser decode
-/** @type {Record<string, { aborted: boolean, timeoutId: any, imageLoading: boolean, activeLayer: string }>} */
-const liveFrameControllers = {};
-
+// Live frames use the browser's native MJPEG rendering: an <img src="/api/stream/mjpeg/{id}">
+// keeps a single HTTP connection open and swaps frames in-place. No JS polling needed.
+// These helpers now only exist to close the stream when the container is replaced, so we
+// don't leak an HTTP connection per navigation.
 function stopLiveFrameRefresh(containerId) {
     if (containerId) {
-        const s = liveFrameControllers[containerId];
-        if (s) {
-            s.aborted = true;
-            s.imageLoading = false;
-            s.activeLayer = 'a';
-            if (s.timeoutId !== null) {
-                clearTimeout(s.timeoutId);
-            }
-            delete liveFrameControllers[containerId];
-        }
+        var root = document.getElementById(containerId);
+        if (!root) return;
+        root.querySelectorAll('.parking-map-mjpeg').forEach(function (img) {
+            // Clearing `src` tells the browser to abort the multipart GET.
+            try { img.removeAttribute('src'); } catch (_) {}
+        });
         return;
     }
-    Object.keys(liveFrameControllers).forEach(function (id) {
-        stopLiveFrameRefresh(id);
+    document.querySelectorAll('.parking-map-mjpeg').forEach(function (img) {
+        try { img.removeAttribute('src'); } catch (_) {}
     });
 }
 
-/**
- * Double-buffered frames per parking-map container.
- */
-function ensureLiveFrameRefresh(containerId, lotId) {
-    if (liveFrameControllers[containerId]) return;
-    var wrapProbe = document.getElementById(containerId);
-    if (wrapProbe) {
-        var w = wrapProbe.querySelector('.parking-map-mjpeg');
-        if (w) return;
-    }
-
-    const mediaBase = mediaUrlForLot(lotId);
-    const s = {
-        aborted: false,
-        timeoutId: null,
-        imageLoading: false,
-        activeLayer: 'a'
-    };
-    liveFrameControllers[containerId] = s;
-    s.aborted = false;
-
-    function scheduleNext(delay) {
-        if (s.aborted) return;
-        if (s.timeoutId !== null) {
-            clearTimeout(s.timeoutId);
-        }
-        s.timeoutId = setTimeout(tick, delay);
-    }
-
-    function tick() {
-        s.timeoutId = null;
-        if (s.aborted) return;
-        if (s.imageLoading) {
-            // Avoid overlapping image fetch/decode cycles under slow networks/CPUs.
-            scheduleNext(LIVE_FRAME_MS);
-            return;
-        }
-        const container = document.getElementById(containerId);
-        if (!container) {
-            delete liveFrameControllers[containerId];
-            return;
-        }
-        const wrap = container.querySelector('.parking-map-frame-wrap');
-        if (!wrap) return;
-        const a = wrap.querySelector('.parking-map-frame-a');
-        const b = wrap.querySelector('.parking-map-frame-b');
-        if (!a || !b) return;
-
-        const hidden = s.activeLayer === 'a' ? b : a;
-        const visible = s.activeLayer === 'a' ? a : b;
-        const url = mediaBase + '?t=' + Date.now();
-
-        function swapAndContinue() {
-            if (s.aborted) return;
-            visible.classList.remove('parking-map-frame-visible');
-            hidden.classList.add('parking-map-frame-visible');
-            s.activeLayer = s.activeLayer === 'a' ? 'b' : 'a';
-            scheduleNext(LIVE_FRAME_MS);
-        }
-
-        s.imageLoading = true;
-        hidden.onload = function () {
-            hidden.onload = null;
-            hidden.onerror = null;
-            s.imageLoading = false;
-            if (s.aborted) return;
-            if (typeof hidden.decode === 'function') {
-                hidden.decode().then(swapAndContinue).catch(swapAndContinue);
-            } else {
-                swapAndContinue();
-            }
-        };
-        hidden.onerror = function () {
-            hidden.onload = null;
-            hidden.onerror = null;
-            s.imageLoading = false;
-            if (!s.aborted) scheduleNext(LIVE_FRAME_MS);
-        };
-        hidden.src = url;
-    }
-
-    scheduleNext(0);
+function ensureLiveFrameRefresh(_containerId, _lotId) {
+    // No-op. Kept for callsite compatibility; the <img src=mjpeg> tag in
+    // frameStackHtml already drives the stream.
 }
 
 function updateParkingMapOverlays(container, slots, config) {
@@ -368,7 +266,6 @@ function updateParkingMapOverlays(container, slots, config) {
         if (!g) continue;
         const occupied = !!slot.is_occupied;
         const cls = occupied ? 'occupied' : 'available';
-        const sl = occupationSourceLabel(slot.occupation_source || 'vision');
         g.classList.remove('occupied', 'available');
         g.classList.add(cls);
         const poly = g.querySelector('.slot-polygon-shape');
@@ -376,14 +273,14 @@ function updateParkingMapOverlays(container, slots, config) {
             poly.classList.remove('occupied', 'available');
             poly.classList.add(cls);
         }
-        g.querySelectorAll('.slot-polygon-label, .slot-polygon-source').forEach(function (el) {
+        g.querySelectorAll('.slot-polygon-label').forEach(function (el) {
             el.classList.remove('occupied', 'available');
             el.classList.add(cls);
         });
         const titleEl = g.querySelector('title');
         if (titleEl) {
             titleEl.textContent =
-                slot.slot_number + ' - ' + (occupied ? 'Occupied' : 'Available') + ' (' + sl + ')';
+                slot.slot_number + ' - ' + (occupied ? 'Occupied' : 'Available');
         }
     }
 }
@@ -503,13 +400,11 @@ async function loadParkingStatus(options) {
         if (!hasConfig) {
             stopLiveFrameRefresh(containerId);
             container.style.backgroundImage = '';
-            const sourceLabel = (src) => occupationSourceLabel(src);
             container.innerHTML = slots.map(slot => `
                 <div class="slot-card ${slot.is_occupied ? 'occupied' : 'available'}" title="${slot.slot_number} - ${slot.zone || ''}">
                     <div class="slot-number">${slot.slot_number}</div>
                     <div class="slot-status">${slot.is_occupied ? 'Occupied' : 'Available'}</div>
                     ${slot.zone ? `<div class="slot-zone">${slot.zone}</div>` : ''}
-                    ${slot.occupation_source ? `<span class="slot-source badge-source">${sourceLabel(slot.occupation_source)}</span>` : ''}
                 </div>
             `).join('');
             return;
@@ -532,24 +427,18 @@ async function loadParkingStatus(options) {
             if (!polygon || !polygon.length) {
                 return '';
             }
-            const bounds = getPolygonBounds(polygon);
             const [cx, cy] = polygonCentroid(polygon);
             const pointsAttr = polygonToSvgPoints(polygon);
             const cls = slot.is_occupied ? 'occupied' : 'available';
-            const src = slot.occupation_source;
-            const sourceLabel = occupationSourceLabel(src);
             const tip = escapeSvgText(
-                `${slot.slot_number} - ${slot.is_occupied ? 'Occupied' : 'Available'} (${sourceLabel})`
+                `${slot.slot_number} - ${slot.is_occupied ? 'Occupied' : 'Available'}`
             );
-            const srcX = bounds.maxX - 12;
-            const srcY = bounds.maxY - 10;
             const ds = escapeHtmlAttr(slot.slot_number);
             return `
                 <g class="slot-polygon-group ${cls}" data-slot="${ds}">
                     <title>${tip}</title>
                     <polygon class="slot-polygon-shape ${cls}" points="${pointsAttr}" />
                     <text class="slot-polygon-label ${cls}" font-size="48" x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="central">${escapeSvgText(slot.slot_number)}</text>
-                    ${src ? `<text class="slot-polygon-source ${cls}" font-size="24" x="${srcX.toFixed(1)}" y="${srcY.toFixed(1)}" text-anchor="end" dominant-baseline="auto">${escapeSvgText(sourceLabel)}</text>` : ''}
                 </g>
             `;
         }).join('');

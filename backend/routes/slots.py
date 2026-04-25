@@ -8,54 +8,42 @@ from backend.database import get_db
 from backend.models import SlotStatus, SlotUpdate, SlotStats
 from backend.auth import get_current_user, get_current_admin_user
 from backend.services import get_slot_stats
-from backend.config import SLOTS_CONFIG, SLOTS_CONFIG_WEST, AI_API_KEY
+from backend.config import SLOTS_CONFIG, SLOTS_CONFIG_WEST, AI_API_KEY, DATABASE_PATH
+from backend.slot_notify import subscribe, unsubscribe, notify_slot_changed
 
 router = APIRouter(prefix="/api/slots", tags=["slots"])
 
 
 def _row_to_slot_status(row) -> SlotStatus:
-    d = dict(row)
-    if d.get("occupation_source") is None:
-        d["occupation_source"] = "vision"
-    return SlotStatus(**d)
+    return SlotStatus(**dict(row))
 
 
 @router.get("/status", response_model=List[SlotStatus])
-async def get_slots_status(    db=Depends(get_db), lot_id: Optional[int] = None):
-    try:
-        if lot_id is not None:
-            try:
-                async with db.execute(
-                    "SELECT id, slot_number, zone, is_occupied, last_updated, "
-                    "COALESCE(occupation_source, 'vision') as occupation_source, lot_id "
-                    "FROM parking_slots "
-                    "WHERE lot_id = ? ORDER BY slot_number",
-                    (lot_id,),
-                ) as cursor:
-                    rows = await cursor.fetchall()
-                    return [_row_to_slot_status(row) for row in rows]
-            except Exception:
-                pass
+async def get_slots_status(db=Depends(get_db), lot_id: Optional[int] = None):
+    if lot_id is not None:
         async with db.execute(
-            "SELECT id, slot_number, zone, is_occupied, last_updated, "
-            "COALESCE(occupation_source, 'vision') as occupation_source, lot_id "
-            "FROM parking_slots ORDER BY slot_number"
+            "SELECT id, slot_number, zone, is_occupied, last_updated, lot_id "
+            "FROM parking_slots WHERE lot_id = ? ORDER BY slot_number",
+            (lot_id,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [_row_to_slot_status(row) for row in rows]
-    except Exception:
-        async with db.execute(
-            "SELECT id, slot_number, zone, is_occupied, last_updated, lot_id FROM parking_slots ORDER BY slot_number"
-        ) as cursor:
-            rows = await cursor.fetchall()
-            return [_row_to_slot_status(row) for row in rows]
+    async with db.execute(
+        "SELECT id, slot_number, zone, is_occupied, last_updated, lot_id "
+        "FROM parking_slots ORDER BY slot_number"
+    ) as cursor:
+        rows = await cursor.fetchall()
+        return [_row_to_slot_status(row) for row in rows]
+
 
 @router.get("/stats", response_model=SlotStats)
 async def get_stats(db=Depends(get_db), lot_id: Optional[int] = None):
     stats = await get_slot_stats(db, lot_id=lot_id)
     return SlotStats(**stats)
 
+
 def _normalize_slot_keys(data: dict) -> dict:
+    # Cyrillic "А" → Latin "A" so hand-edited JSON still matches DB slot names.
     return {k.replace("\u0410", "A"): v for k, v in data.items()}
 
 
@@ -64,8 +52,6 @@ async def get_slots_config(lot_id: Optional[int] = None):
     path = SLOTS_CONFIG
     if lot_id is not None:
         try:
-            from backend.config import DATABASE_PATH
-
             async with aiosqlite.connect(DATABASE_PATH) as db:
                 db.row_factory = aiosqlite.Row
                 async with db.execute(
@@ -81,57 +67,51 @@ async def get_slots_config(lot_id: Optional[int] = None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        data = _normalize_slot_keys(data)
-
-        if lot_id is not None and data:
-            try:
-                from backend.database import get_db_connection
-
-                async with get_db_connection() as db:
-                    async with db.execute(
-                        "SELECT slot_number FROM parking_slots WHERE lot_id = ? ORDER BY slot_number",
-                        (lot_id,),
-                    ) as c:
-                        rows = await c.fetchall()
-                db_slots = [str(r["slot_number"]) for r in rows if r and r["slot_number"]]
-                cfg_keys = list(data.keys())
-                overlap = set(db_slots).intersection(cfg_keys)
-                if db_slots and not overlap and len(db_slots) == len(cfg_keys):
-                    mapped = {}
-                    for slot_name, old_key in zip(sorted(db_slots), sorted(cfg_keys)):
-                        mapped[slot_name] = data[old_key]
-                    return mapped
-            except Exception:
-                pass
-
-        return data
+        return _normalize_slot_keys(data)
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=500, detail=f"Invalid slots config: {str(e)}")
 
+
 @router.get("/stream")
 async def stream_slot_status():
-    from backend.config import DATABASE_PATH
-
     async def generate():
-        while True:
-            try:
-                async with aiosqlite.connect(DATABASE_PATH) as conn:
-                    conn.row_factory = aiosqlite.Row
-                    async with conn.execute(
-                        "SELECT * FROM parking_slots ORDER BY slot_number"
-                    ) as cursor:
-                        rows = await cursor.fetchall()
-                    data = []
-                    for row in rows:
-                        d = dict(row)
-                        if d.get("occupation_source") is None:
-                            d["occupation_source"] = "vision"
-                        data.append(d)
-                payload = json.dumps(data)
-                yield f"data: {payload}\n\n"
-            except Exception:
-                yield "data: []\n\n"
-            await asyncio.sleep(1)
+        ev = subscribe()
+        last_payload: Optional[str] = None
+        # Fallback tick so long-idle connections still revalidate and any
+        # missed notifications (e.g. writes from a process without the
+        # notifier wired) still land within this window.
+        idle_timeout = 10.0
+        # After being woken, coalesce rapid-fire updates into one SSE frame.
+        coalesce_delay = 0.15
+        try:
+            while True:
+                try:
+                    async with aiosqlite.connect(DATABASE_PATH) as conn:
+                        conn.row_factory = aiosqlite.Row
+                        async with conn.execute(
+                            "SELECT id, slot_number, zone, is_occupied, last_updated, lot_id "
+                            "FROM parking_slots ORDER BY slot_number"
+                        ) as cursor:
+                            rows = await cursor.fetchall()
+                        data = [dict(row) for row in rows]
+                    payload = json.dumps(data)
+                    if payload != last_payload:
+                        last_payload = payload
+                        yield f"data: {payload}\n\n"
+                except Exception:
+                    if last_payload != "[]":
+                        last_payload = "[]"
+                        yield "data: []\n\n"
+
+                ev.clear()
+                try:
+                    await asyncio.wait_for(ev.wait(), timeout=idle_timeout)
+                    # Woken by a change — wait a beat so bursts coalesce.
+                    await asyncio.sleep(coalesce_delay)
+                except asyncio.TimeoutError:
+                    pass
+        finally:
+            unsubscribe(ev)
 
     return StreamingResponse(
         generate(),
@@ -161,24 +141,36 @@ async def update_slot_status(
     if not updates:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No updates provided"
+            detail="No updates provided",
         )
     updated_count = 0
     current_time = datetime.now(timezone.utc).isoformat()
     for update in updates:
         if not update.slot_number:
             continue
-        async with db.execute(
-            """UPDATE parking_slots 
-               SET is_occupied = ?, last_updated = ?, occupation_source = 'vision'
-               WHERE slot_number = ?""",
-            (1 if update.is_occupied else 0, current_time, update.slot_number)
-        ) as cursor:
-            if cursor.rowcount > 0:
-                updated_count += 1
+        if update.lot_id is not None:
+            async with db.execute(
+                """UPDATE parking_slots
+                   SET is_occupied = ?, last_updated = ?
+                   WHERE slot_number = ? AND lot_id = ?""",
+                (1 if update.is_occupied else 0, current_time, update.slot_number, update.lot_id),
+            ) as cursor:
+                if cursor.rowcount > 0:
+                    updated_count += 1
+        else:
+            async with db.execute(
+                """UPDATE parking_slots
+                   SET is_occupied = ?, last_updated = ?
+                   WHERE slot_number = ?""",
+                (1 if update.is_occupied else 0, current_time, update.slot_number),
+            ) as cursor:
+                if cursor.rowcount > 0:
+                    updated_count += 1
     await log_action(db, "slot_status_updated", None, {
         "updated_count": updated_count,
         "slots": [u.slot_number for u in updates],
     })
     await db.commit()
+    if updated_count:
+        notify_slot_changed()
     return {"message": f"Updated {updated_count} slots", "updated": updated_count}

@@ -573,20 +573,11 @@ body {
     filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
 }
 
-.slot-polygon-label,
-.slot-polygon-source {
+.slot-polygon-label {
     font-family: inherit;
     font-weight: 600;
     pointer-events: none;
-}
-
-.slot-polygon-label {
     fill: var(--text);
-}
-
-.slot-polygon-source {
-    font-weight: 500;
-    fill: var(--text-light);
 }
 
 .slot-overlay.available {
@@ -639,23 +630,6 @@ body {
     font-size: 0.75rem;
     color: var(--text-light);
     margin-top: 0.25rem;
-}
-
-.slot-source.badge-source {
-    display: inline-block;
-    font-size: 0.65rem;
-    padding: 0.1rem 0.35rem;
-    border-radius: 3px;
-    background: rgba(0, 0, 0, 0.2);
-    color: var(--text-light);
-    margin-top: 0.2rem;
-}
-
-.slot-overlay .badge-source {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    margin: 0;
 }
 
 .stats-bar {
@@ -2497,18 +2471,21 @@ body.app-shell {
 }
 
 .shell-backdrop {
-    display: none;
     position: fixed;
     inset: 0;
     background: rgba(15, 23, 42, 0.45);
     z-index: 205;
     opacity: 0;
-    transition: opacity 0.25s;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.25s, visibility 0s linear 0.25s;
 }
 
 body.sidebar-open .shell-backdrop {
-    display: block;
     opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 0.25s, visibility 0s linear 0s;
 }
 
 .app-main-wrap {
@@ -3248,20 +3225,6 @@ body.sidebar-open .shell-backdrop {
     opacity: 0.9;
 }
 
-.lot-slots-board .slot-source.badge-source,
-.lot-slots-board .lot-source-pill {
-    margin-top: 0.5rem;
-    padding: 0.28rem 0.65rem;
-    border-radius: 999px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: rgba(255, 255, 255, 0.92);
-    color: #64748b;
-    border: 1px solid rgba(226, 232, 240, 0.95);
-}
-
 .lot-topbar-guest {
     gap: 0.5rem;
 }
@@ -3283,6 +3246,13 @@ body.sidebar-open .shell-backdrop {
 
     body.sidebar-open .app-shell .app-sidebar {
         transform: translateX(0);
+    }
+
+    /* Lock the page underneath when the slide-out menu is open so the
+       background doesn't scroll under the user's finger on iOS. */
+    body.app-shell.sidebar-open {
+        overflow: hidden;
+        touch-action: none;
     }
 
     .app-icon-btn {
@@ -3521,4 +3491,109 @@ body.admin-app .app-page {
 
 .admin-audit-body .table-container {
     margin-top: 1rem;
+}
+
+/* =========================================================================
+   Mobile polish (additive — appended to end of file).
+   Scoped to small viewports + touch devices so desktop layout is untouched.
+   Covers: tap targets, iOS zoom-on-focus, table overflow, sticky CTAs,
+   chat-widget overlap.
+   ========================================================================= */
+
+/* iOS Safari zooms when an input has font-size < 16px. Apply only to touch
+   devices so we don't bump font-size on desktop forms. */
+@media (hover: none) and (pointer: coarse) {
+    input, select, textarea {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 640px) {
+    /* 1. Tap targets — 44px minimum per Apple/Material guidelines.
+       Scoped to interactive controls only (buttons, anchors styled as
+       buttons, form fields, dropdown triggers). */
+    .btn,
+    button:not(.chat-toggle),
+    a.btn,
+    input[type="button"],
+    input[type="submit"],
+    input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+        min-height: 44px;
+    }
+    .btn-small {
+        min-height: 38px;
+        padding: 0.5rem 0.85rem;
+    }
+    /* Keep checkbox/radio hit area generous without resizing the box itself */
+    label > input[type="checkbox"],
+    label > input[type="radio"] {
+        min-width: 22px;
+        min-height: 22px;
+        margin-right: 0.5rem;
+    }
+
+    /* 4. Tables — let admin tables scroll horizontally instead of
+       overflowing the viewport. */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .table-container table {
+        min-width: 560px;
+    }
+
+    /* 5. Sticky bottom action bar — primary CTAs stay visible without
+       scrolling on Quick Reserve and checkout. */
+    .dashboard-card-reserve .form-actions,
+    .checkout-form .form-actions,
+    .form-actions.sticky-mobile {
+        position: sticky;
+        bottom: 0;
+        background: #fff;
+        padding: 0.75rem 1rem;
+        margin: 1rem -1rem -1rem;
+        border-top: 1px solid rgba(226, 232, 240, 0.9);
+        box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.06);
+        z-index: 5;
+    }
+    .dashboard-card-reserve .form-actions .btn,
+    .checkout-form .form-actions .btn {
+        width: 100%;
+    }
+
+    /* 6. Chat widget — keep it from covering the last form field.
+       Reserve space at the bottom of scrollable forms so the floating
+       bubble never sits on top of an input or submit button. */
+    .chat-toggle {
+        bottom: 16px;
+        right: 16px;
+        z-index: 1100;
+    }
+    .chat-panel {
+        right: 12px;
+        left: 12px;
+        bottom: 80px;
+        width: auto;
+        max-width: none;
+    }
+    .dashboard-card-reserve form,
+    .checkout-form,
+    main form {
+        padding-bottom: 80px; /* clearance for the chat bubble */
+    }
+}
+
+@media (max-width: 480px) {
+    /* Tighter page gutters and full-bleed cards on narrow phones */
+    .container,
+    main {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+    .dashboard-card,
+    .admin-chart-panel {
+        padding: 1rem;
+    }
 }

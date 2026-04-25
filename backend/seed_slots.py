@@ -12,7 +12,7 @@ from backend.config import DATABASE_PATH, SLOTS_CONFIG, SLOTS_CONFIG_WEST
 
 
 async def seed_slots():
-    """Seed parking slots from config files (lot 1: slots.json, lot 2: slots-west.json)."""
+    """Seed parking slots from config files (lot 1: bmu.json, lot 2: west.json)."""
     lot1_id = None
     lot2_id = None
 

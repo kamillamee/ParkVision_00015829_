@@ -1,4 +1,7 @@
+import asyncio
 from contextlib import asynccontextmanager
+import logging
+import os
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -7,9 +10,11 @@ from pathlib import Path
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.limiter import limiter
-from backend.routes import auth, slots, reservations, cars, admin, chat, sensors, lots, payments, stream
+from backend.routes import auth, slots, reservations, cars, admin, chat, lots, payments, stream
 import threading
 import time
+
+logger = logging.getLogger("parkvision")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,7 +22,9 @@ async def lifespan(app: FastAPI):
         from backend.database import init_db
         import aiosqlite
         from backend.config import DATABASE_PATH
-        
+        from backend.slot_notify import bind_loop
+
+        bind_loop(asyncio.get_running_loop())
         await init_db()
         print("OK: Database initialized successfully")
 
@@ -119,9 +126,13 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS: the browser rejects `*` with `allow_credentials=True` so we honor
+# CORS_ALLOW_ORIGINS (comma-separated) and default to the local dev server only.
+_cors_env = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+_cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,7 +144,6 @@ app.include_router(reservations.router)
 app.include_router(cars.router)
 app.include_router(admin.router)
 app.include_router(chat.router)
-app.include_router(sensors.router)
 app.include_router(lots.router)
 app.include_router(payments.router)
 app.include_router(stream.router)
@@ -214,7 +224,9 @@ async def serve_page(page: str, request: Request):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Log the full traceback server-side; do NOT leak internals to clients.
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error", "message": str(exc)}
+        content={"detail": "Internal server error"},
     )

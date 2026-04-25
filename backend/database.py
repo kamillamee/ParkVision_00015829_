@@ -53,13 +53,17 @@ async def init_db():
                WHERE NOT EXISTS (SELECT 1 FROM parking_lots LIMIT 1)"""
         )
 
+        # Slot numbers are only unique *within* a lot so different lots can
+        # share names (e.g. A1 in lot 1 and A1 in lot 2).
         await db.execute("""
             CREATE TABLE IF NOT EXISTS parking_slots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                slot_number TEXT UNIQUE NOT NULL,
+                slot_number TEXT NOT NULL,
                 zone TEXT,
                 is_occupied INTEGER DEFAULT 0,
-                last_updated TEXT DEFAULT CURRENT_TIMESTAMP
+                last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+                lot_id INTEGER REFERENCES parking_lots(id) ON DELETE SET NULL,
+                UNIQUE(slot_number, lot_id)
             )
         """)
 
@@ -108,16 +112,6 @@ async def init_db():
             )
         """)
 
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS sensor_readings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                slot_number TEXT NOT NULL,
-                source TEXT NOT NULL,
-                is_occupied INTEGER NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
         await db.commit()
 
         try:
@@ -130,15 +124,13 @@ async def init_db():
         except Exception:
             pass
 
+        # Drop legacy sensor_readings table + occupation_source column if left over
+        # from older installs. SQLite can't DROP COLUMN before 3.35, and even then
+        # it's better to rebuild the table so our new UNIQUE(slot_number, lot_id)
+        # constraint takes effect. We handle that in the migration block below.
         try:
-            async with db.execute("PRAGMA table_info(parking_slots)") as cursor:
-                rows = await cursor.fetchall()
-            cols = [r[1] for r in rows]
-            if "occupation_source" not in cols:
-                await db.execute(
-                    "ALTER TABLE parking_slots ADD COLUMN occupation_source TEXT DEFAULT 'vision'"
-                )
-                await db.commit()
+            await db.execute("DROP TABLE IF EXISTS sensor_readings")
+            await db.commit()
         except Exception:
             pass
 
@@ -237,6 +229,54 @@ async def init_db():
                 await db.execute(
                     "ALTER TABLE reservations ADD COLUMN payment_method_id INTEGER REFERENCES payment_methods(id) ON DELETE SET NULL"
                 )
+                await db.commit()
+        except Exception:
+            pass
+
+        # Rebuild parking_slots if a legacy schema is detected:
+        #   - single-column UNIQUE on slot_number (blocks same name in different lots), OR
+        #   - leftover occupation_source column from the retired sensor system.
+        # SQLite doesn't support DROP CONSTRAINT or DROP COLUMN on older
+        # versions, so we do the safe copy-and-rename dance.
+        try:
+            async with db.execute("PRAGMA table_info(parking_slots)") as cursor:
+                ps_rows = await cursor.fetchall()
+            ps_cols = [r[1] for r in ps_rows]
+            has_source = "occupation_source" in ps_cols
+
+            needs_rebuild = False
+            async with db.execute("PRAGMA index_list(parking_slots)") as cursor:
+                idx_rows = await cursor.fetchall()
+            for idx in idx_rows:
+                if not idx[2]:  # unique flag
+                    continue
+                async with db.execute(f"PRAGMA index_info({idx[1]})") as c2:
+                    idx_cols = [r[2] for r in await c2.fetchall()]
+                # Legacy had a single-column UNIQUE index on slot_number.
+                if idx_cols == ["slot_number"]:
+                    needs_rebuild = True
+                    break
+
+            if needs_rebuild or has_source:
+                await db.execute("PRAGMA foreign_keys = OFF")
+                await db.execute("""
+                    CREATE TABLE parking_slots_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        slot_number TEXT NOT NULL,
+                        zone TEXT,
+                        is_occupied INTEGER DEFAULT 0,
+                        last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+                        lot_id INTEGER REFERENCES parking_lots(id) ON DELETE SET NULL,
+                        UNIQUE(slot_number, lot_id)
+                    )
+                """)
+                await db.execute("""
+                    INSERT INTO parking_slots_new (id, slot_number, zone, is_occupied, last_updated, lot_id)
+                    SELECT id, slot_number, zone, is_occupied, last_updated, lot_id FROM parking_slots
+                """)
+                await db.execute("DROP TABLE parking_slots")
+                await db.execute("ALTER TABLE parking_slots_new RENAME TO parking_slots")
+                await db.execute("PRAGMA foreign_keys = ON")
                 await db.commit()
         except Exception:
             pass

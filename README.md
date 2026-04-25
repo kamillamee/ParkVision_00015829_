@@ -252,18 +252,18 @@ PORT=8000
 DATABASE_PATH=database/parking.db
 AI_API_KEY=ai-module-secret-key-12345
 
-# Optional: chat assistant
+# chat assistant
 CHAT_ENABLED=true
 OPENAI_API_KEY=sk-...
 
-# Optional: email notifications
+# email notifications
 NOTIFY_EMAIL_ENABLED=false
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=you@example.com
 SMTP_PASSWORD=...
 
-# Optional: SMS notifications (Twilio)
+# SMS notifications (Twilio)
 NOTIFY_SMS_ENABLED=false
 TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
