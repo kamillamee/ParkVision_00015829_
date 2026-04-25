@@ -16,12 +16,6 @@ models/*.pth
 models/*.onnx
 models/*.bin
 
-# Video files
-video/
-*.mp4
-*.avi
-*.mov
-*.mkv
 
 # Database files
 *.db
@@ -48,3 +42,9 @@ logs/
 dist/
 build/
 *.egg-info/
+
+# =========================
+# AI / Cache
+# =========================
+.pytest_cache/
+.claude/
