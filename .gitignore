@@ -48,3 +48,5 @@ build/
 # =========================
 .pytest_cache/
 .claude/
+# Archive / backups
+archive/
