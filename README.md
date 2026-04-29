@@ -2,6 +2,15 @@ Park Vision
 
 Publi Url: https://harsh-johnie-handsomeish.ngrok-free.dev
 
+Login Details (User Account):
+Phone:+99890013355
+password:park123
+
+
+Default Admin Account
+Phone:    +1234567890
+Password: admin123
+ 
 An AI-powered parking management platform that uses computer vision to detect real-time slot occupancy, lets users reserve spots, and gives admins full oversight of the system.
 
 - What It Is
@@ -181,15 +190,6 @@ python ai_module/inference.py --lot-id 2
 The YOLO11m model downloads automatically on first run. Both lot instances can run simultaneously.
 If you do this, set `PARKING_VISION_ENABLED=false` to avoid running two detectors against the
 same lot.
-
--
-
-- Default Admin Account
-
- 
-Phone:    +1234567890
-Password: admin123
- 
 
 -
 
