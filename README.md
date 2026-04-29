@@ -1,5 +1,7 @@
 Park Vision
 
+Publi Url: https://harsh-johnie-handsomeish.ngrok-free.dev
+
 An AI-powered parking management platform that uses computer vision to detect real-time slot occupancy, lets users reserve spots, and gives admins full oversight of the system.
 
 - What It Is
